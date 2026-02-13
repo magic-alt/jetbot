@@ -16,7 +16,7 @@ class SourceRef(BaseModel):
     ref_type: Literal["page_text", "table", "image"]
     page: int
     table_id: str | None = None
-    quote: str | None = Field(default=None, max_length=200)
+    quote: str | None = Field(default=None)
     confidence: float = Field(ge=0.0, le=1.0)
 
     @field_validator("quote")

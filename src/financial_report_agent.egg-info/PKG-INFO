@@ -1,3 +1,29 @@
+Metadata-Version: 2.4
+Name: financial-report-agent
+Version: 0.1.0
+Summary: PDF financial report parsing and trader analysis agent
+Author: Your Team
+License: MIT
+Keywords: pdf,finance,fastapi,langgraph
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.110
+Requires-Dist: uvicorn>=0.24
+Requires-Dist: pydantic>=2.5
+Requires-Dist: langgraph>=0.0.40
+Requires-Dist: typer>=0.9
+Requires-Dist: python-multipart>=0.0.6
+Requires-Dist: python-dotenv>=1.0
+Requires-Dist: pandas>=2.0
+Requires-Dist: structlog>=23.1
+Requires-Dist: pdfplumber>=0.10
+Requires-Dist: PyMuPDF>=1.23
+Requires-Dist: openai>=1.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23; extra == "dev"
+Requires-Dist: ruff>=0.5; extra == "dev"
+
 # Financial Report PDF Agent
 
 This repository provides a FastAPI service and CLI for parsing financial report PDFs, extracting structured statements and notes, running validation checks, and generating a trader-style report with evidence references. It runs in mock mode by default and can use an OpenAI model when configured.
@@ -17,17 +43,7 @@ Upload a PDF and trigger analysis (mock LLM if `OPENAI_API_KEY` is not set).
 
 1. Copy `.env.example` to `.env`
 2. Set `OPENAI_API_KEY` and optionally `OPENAI_MODEL`
-3. (Optional) set `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, and `LANGSMITH_PROJECT` for tracing
-4. Restart the API or CLI
-
-## LangChain Integration (Internal Capability Layer)
-
-The pipeline keeps LangGraph as the workflow engine and uses LangChain inside nodes for:
-
-- `ChatPromptTemplate` prompt assembly
-- structured output via `with_structured_output(...)`
-- `RunnableParallel` for selected parallel LLM branches
-- lightweight local retrieval context (`src/storage/vector_index.py`) over chunk/table `Document` objects
+3. Restart the API or CLI
 
 ## API Examples
 

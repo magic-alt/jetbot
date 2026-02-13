@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+from typing import Any
+
+from pydantic import ValidationError
 
 from src.schemas.models import (
     FinancialStatement,
@@ -25,6 +28,46 @@ class MockLLMClient:
         else:
             data = {"ok": True}
         return json.dumps(data, ensure_ascii=True)
+
+    def invoke_structured(
+        self,
+        request: Any,
+        *,
+        run_name: str | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Any:
+        del run_name, tags, metadata
+        prompt = f"{request.system_template}\n{request.user_template}".lower()
+        if "statement" in prompt or "financialstatement" in prompt:
+            data: Any = _mock_statement()
+        elif "key note" in prompt or "notes" in prompt:
+            data = _mock_notes()
+        elif "risk signal" in prompt or "risksignal" in prompt:
+            data = _mock_risk_signals()
+        elif "trader report" in prompt or "traderreport" in prompt:
+            data = _mock_report()
+        else:
+            data = {"ok": True}
+        return _coerce_output(data, request.output_model)
+
+    def invoke_parallel(
+        self,
+        requests: dict[str, Any],
+        *,
+        run_name: str | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return {
+            key: self.invoke_structured(
+                request,
+                run_name=f"{run_name}.{key}" if run_name else key,
+                tags=tags,
+                metadata=metadata,
+            )
+            for key, request in requests.items()
+        }
 
 
 def _mock_evidence() -> list[dict[str, object]]:
@@ -71,4 +114,25 @@ def _mock_report() -> dict[str, object]:
         notes=[],
         limitations=["Mock output; no model configured."],
     )
-    return report.model_dump()
+    return report.model_dump(mode="json")
+
+
+def _coerce_output(data: Any, output_model: Any) -> Any:
+    if output_model is None:
+        return data
+    try:
+        return output_model.model_validate(data)
+    except ValidationError:
+        if isinstance(data, list):
+            field_names = list(output_model.model_fields.keys())
+            if len(field_names) == 1:
+                wrapped = {field_names[0]: data}
+                return output_model.model_validate(wrapped)
+        if isinstance(data, dict):
+            for field_name, field_info in output_model.model_fields.items():
+                annotation = field_info.annotation
+                if getattr(annotation, "__origin__", None) is list and field_name not in data:
+                    data = dict(data)
+                    data[field_name] = []
+            return output_model.model_validate(data)
+        raise

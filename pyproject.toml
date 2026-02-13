@@ -24,6 +24,10 @@ dependencies = [
   "pdfplumber>=0.10",
   "PyMuPDF>=1.23",
   "openai>=1.0",
+  "langchain>=0.3",
+  "langchain-core>=0.3",
+  "langchain-openai>=0.2",
+  "langchain-text-splitters>=0.3",
 ]
 
 [project.optional-dependencies]
