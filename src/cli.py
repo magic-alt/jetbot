@@ -54,7 +54,6 @@ def analyze(
 
 @app.command("render-report")
 def render_report(doc_id: str, out: str = "data"):
-    store = LocalStore(out)
     path = Path(out) / doc_id / "report" / "trader_report.md"
     if not path.exists():
         raise typer.BadParameter("Report not found")

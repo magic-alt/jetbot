@@ -9,7 +9,7 @@ def test_generate_cash_vs_profit_signal():
         statement_type="income",
         line_items=[
             StatementLineItem(
-                name_raw="???",
+                name_raw="净利润",
                 name_norm="net_income",
                 value_current=10.0,
                 value_prior=None,
@@ -27,7 +27,7 @@ def test_generate_cash_vs_profit_signal():
         statement_type="cashflow",
         line_items=[
             StatementLineItem(
-                name_raw="?????????????",
+                name_raw="经营活动产生的现金流量净额",
                 name_norm="operating_cf",
                 value_current=-5.0,
                 value_prior=None,

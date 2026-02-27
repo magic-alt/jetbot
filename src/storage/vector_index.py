@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import heapq
 import math
 import re
 from dataclasses import dataclass
 from typing import Any
 
 from src.schemas.models import Chunk, Table
+from src.finance.utils import table_to_text
 
 try:
     from langchain_core.documents import Document
@@ -77,7 +79,7 @@ class LocalVectorIndex:
                 )
 
         for table in tables:
-            text = table.raw_markdown or _table_to_text(table)
+            text = table.raw_markdown or table_to_text(table)
             if not text.strip():
                 continue
             documents.append(
@@ -99,13 +101,9 @@ class LocalVectorIndex:
         if not tokens:
             return self._documents[:k]
 
-        scored: list[tuple[float, Document]] = []
-        for doc in self._documents:
-            score = _score(tokens, doc.page_content)
-            scored.append((score, doc))
-
-        scored.sort(key=lambda item: item[0], reverse=True)
-        top = [doc for score, doc in scored if score > 0][:k]
+        scored = [(_score(tokens, doc.page_content), idx, doc) for idx, doc in enumerate(self._documents)]
+        top_k = heapq.nlargest(k, scored, key=lambda item: item[0])
+        top = [doc for score, _idx, doc in top_k if score > 0]
         if top:
             return top
         return self._documents[:k]
@@ -113,17 +111,6 @@ class LocalVectorIndex:
     @property
     def size(self) -> int:
         return len(self._documents)
-
-
-def _table_to_text(table: Table) -> str:
-    rows: dict[int, list[str]] = {}
-    for cell in table.cells:
-        rows.setdefault(cell.row, [])
-        while len(rows[cell.row]) <= cell.col:
-            rows[cell.row].append("")
-        rows[cell.row][cell.col] = cell.text
-    ordered_rows = [" | ".join(rows[idx]) for idx in sorted(rows)]
-    return "\n".join(ordered_rows)
 
 
 def _tokenize(text: str) -> list[str]:

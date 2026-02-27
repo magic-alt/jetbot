@@ -1,24 +1,44 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 from src.schemas.models import DocumentMeta
 
 
+_SAFE_DOC_ID = re.compile(r"^[a-zA-Z0-9_\-]+$")
+
+
 class LocalStore:
     def __init__(self, base_dir: str = "data") -> None:
-        self.base_dir = Path(base_dir)
+        self.base_dir = Path(base_dir).resolve()
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
+    @staticmethod
+    def _validate_doc_id(doc_id: str) -> None:
+        """Ensure doc_id is safe and cannot cause path traversal."""
+        if not doc_id or not _SAFE_DOC_ID.match(doc_id):
+            raise ValueError(
+                f"Invalid doc_id: {doc_id!r}. "
+                "Must contain only alphanumeric characters, hyphens, and underscores."
+            )
+
+    def _safe_path(self, path: Path) -> Path:
+        """Verify that the resolved path is within base_dir."""
+        resolved = path.resolve()
+        if not str(resolved).startswith(str(self.base_dir)):
+            raise ValueError(f"Path traversal detected: {path}")
+        return resolved
+
     def doc_dir(self, doc_id: str) -> Path:
-        path = self.base_dir / doc_id
-        path.mkdir(parents=True, exist_ok=True)
-        return path
+        self._validate_doc_id(doc_id)
+        return self._safe_path(self.base_dir / doc_id)
 
     def ensure_layout(self, doc_id: str) -> dict[str, Path]:
         root = self.doc_dir(doc_id)
+        root.mkdir(parents=True, exist_ok=True)
         paths = {
             "root": root,
             "pages": root / "pages",
@@ -42,7 +62,8 @@ class LocalStore:
         return meta_path
 
     def load_meta(self, doc_id: str) -> DocumentMeta | None:
-        meta_path = self.base_dir / doc_id / "meta.json"
+        self._validate_doc_id(doc_id)
+        meta_path = self._safe_path(self.base_dir / doc_id / "meta.json")
         if not meta_path.exists():
             return None
         return DocumentMeta.model_validate_json(meta_path.read_text(encoding="utf-8"))
@@ -55,13 +76,15 @@ class LocalStore:
         return full_path
 
     def load_json(self, doc_id: str, relative_path: str) -> Any:
-        full_path = self.base_dir / doc_id / relative_path
+        self._validate_doc_id(doc_id)
+        full_path = self._safe_path(self.base_dir / doc_id / relative_path)
         if not full_path.exists():
             return None
         return json.loads(full_path.read_text(encoding="utf-8"))
 
     def save_markdown(self, doc_id: str, relative_path: str, text: str) -> Path:
-        full_path = self.base_dir / doc_id / relative_path
+        self._validate_doc_id(doc_id)
+        full_path = self._safe_path(self.base_dir / doc_id / relative_path)
         full_path.parent.mkdir(parents=True, exist_ok=True)
         full_path.write_text(text, encoding="utf-8")
         return full_path

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import re
 from typing import Any
 
+from src.finance.utils import fallback_evidence, find_line_item, find_total
 from src.schemas.models import FinancialStatement, KeyNote, RiskSignal, SourceRef
 from src.utils.ids import new_doc_id
 
 
-AUDIT_KEYWORDS = ["????", "??????", "????", "????"]
+AUDIT_KEYWORDS = ["保留意见", "无法表示意见", "否定意见", "强调事项"]
 
 
 def generate_signals(
@@ -18,10 +18,12 @@ def generate_signals(
 ) -> list[RiskSignal]:
     signals: list[RiskSignal] = []
 
-    evidence_fallback = _fallback_evidence(pages_text)
+    evidence_fallback = fallback_evidence(pages_text)
 
-    net_income = _get_total(statements.get("income"), ["net_income"])
-    operating_cf = _get_total(statements.get("cashflow"), ["operating_cf"])
+    income_stmt = statements.get("income")
+    cashflow_stmt = statements.get("cashflow")
+    net_income = find_total(income_stmt, ["net_income"]) if income_stmt else None
+    operating_cf = find_total(cashflow_stmt, ["operating_cf"]) if cashflow_stmt else None
 
     if net_income is not None and operating_cf is not None:
         if net_income > 0 and operating_cf < 0:
@@ -62,31 +64,12 @@ def generate_signals(
     return signals
 
 
-def _get_total(statement: FinancialStatement | None, keys: list[str]) -> float | None:
-    if not statement:
-        return None
-    for key in keys:
-        if key in statement.totals:
-            return statement.totals[key]
-    for item in statement.line_items:
-        if item.name_norm in keys and item.value_current is not None:
-            return item.value_current
-    return None
-
-
 def _pick_evidence(statement: FinancialStatement | None, fallback: list[SourceRef]) -> list[SourceRef]:
     if statement:
         for item in statement.line_items:
             if item.source_refs:
                 return item.source_refs
     return fallback
-
-
-def _fallback_evidence(pages_text: list[str]) -> list[SourceRef]:
-    if pages_text:
-        snippet = pages_text[0].strip().split("\n")[0][:200]
-        return [SourceRef(ref_type="page_text", page=1, table_id=None, quote=snippet, confidence=0.2)]
-    return [SourceRef(ref_type="page_text", page=1, table_id=None, quote="Evidence unavailable", confidence=0.1)]
 
 
 def _working_capital_signal(
@@ -98,9 +81,9 @@ def _working_capital_signal(
     if not balance or not income:
         return None
 
-    ar = _find_line_item(balance, ["??", "accounts receivable"])
-    inventory = _find_line_item(balance, ["??", "inventory"])
-    revenue = _find_line_item(income, ["????", "revenue"])
+    ar = find_line_item(balance, ["应收", "accounts receivable"])
+    inventory = find_line_item(balance, ["存货", "inventory"])
+    revenue = find_line_item(income, ["营业收入", "revenue"])
 
     if not ar or not revenue:
         return None
@@ -129,15 +112,6 @@ def _working_capital_signal(
     return None
 
 
-def _find_line_item(statement: FinancialStatement, keywords: list[str]):
-    for item in statement.line_items:
-        name = f"{item.name_raw} {item.name_norm}".lower()
-        for key in keywords:
-            if key.lower() in name:
-                return item
-    return None
-
-
 def _has_disclosure_issue(validation_results: dict[str, Any]) -> bool:
     issues = validation_results.get("issues", [])
     return any(
@@ -159,7 +133,7 @@ def _audit_governance_signal(
                 signal_id=new_doc_id(),
                 category="audit_governance",
                 title="Audit opinion flags",
-                severity="medium" if keyword == "????" else "high",
+                severity="medium" if keyword == "强调事项" else "high",
                 description=f"Audit opinion contains keyword: {keyword}.",
                 metrics={"keyword": keyword},
                 evidence=fallback,

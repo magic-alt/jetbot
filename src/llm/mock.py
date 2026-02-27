@@ -18,7 +18,7 @@ class MockLLMClient:
     async def chat(self, system: str, user: str, json_schema: dict | None = None) -> str:
         prompt = f"{system}\n{user}".lower()
         if "statement" in prompt or "financialstatement" in prompt:
-            data = _mock_statement()
+            data = _mock_statement(prompt)
         elif "keynote" in prompt or "notes" in prompt:
             data = _mock_notes()
         elif "traderreport" in prompt or "trader report" in prompt:
@@ -40,7 +40,7 @@ class MockLLMClient:
         del run_name, tags, metadata
         prompt = f"{request.system_template}\n{request.user_template}".lower()
         if "statement" in prompt or "financialstatement" in prompt:
-            data: Any = _mock_statement()
+            data: Any = _mock_statement(prompt)
         elif "key note" in prompt or "notes" in prompt:
             data = _mock_notes()
         elif "risk signal" in prompt or "risksignal" in prompt:
@@ -75,23 +75,41 @@ def _mock_evidence() -> list[dict[str, object]]:
     return [ref.model_dump()]
 
 
-def _mock_statement() -> dict[str, object]:
-    statement = FinancialStatement(
-        statement_type="balance",
-        line_items=[],
-        totals={"total_assets": 0.0, "total_liabilities": 0.0, "total_equity": 0.0},
-        extraction_confidence=0.2,
-        issues=["mock_statement"],
-    )
+def _mock_statement(prompt: str = "") -> dict[str, object]:
+    prompt_lower = prompt.lower()
+    if "income" in prompt_lower or "profit" in prompt_lower:
+        statement = FinancialStatement(
+            statement_type="income",
+            line_items=[],
+            totals={"revenue": 0.0, "net_income": 0.0, "cost_of_goods_sold": 0.0},
+            extraction_confidence=0.2,
+            issues=["mock_statement"],
+        )
+    elif "cashflow" in prompt_lower or "cash flow" in prompt_lower:
+        statement = FinancialStatement(
+            statement_type="cashflow",
+            line_items=[],
+            totals={"operating_cf": 0.0},
+            extraction_confidence=0.2,
+            issues=["mock_statement"],
+        )
+    else:
+        statement = FinancialStatement(
+            statement_type="balance",
+            line_items=[],
+            totals={"total_assets": 0.0, "total_liabilities": 0.0, "total_equity": 0.0},
+            extraction_confidence=0.2,
+            issues=["mock_statement"],
+        )
     return statement.model_dump()
 
 
-def _mock_notes() -> list[dict[str, object]]:
+def _mock_notes() -> dict[str, object]:
     note = KeyNote(note_type="accounting_policy", summary="mock note", source_refs=_mock_evidence())
-    return [note.model_dump()]
+    return {"notes": [note.model_dump()]}
 
 
-def _mock_risk_signals() -> list[dict[str, object]]:
+def _mock_risk_signals() -> dict[str, object]:
     signal = RiskSignal(
         signal_id="mock-1",
         category="other",
@@ -101,7 +119,7 @@ def _mock_risk_signals() -> list[dict[str, object]]:
         metrics={},
         evidence=_mock_evidence(),
     )
-    return [signal.model_dump()]
+    return {"risk_signals": [signal.model_dump()]}
 
 
 def _mock_report() -> dict[str, object]:
@@ -129,10 +147,10 @@ def _coerce_output(data: Any, output_model: Any) -> Any:
                 wrapped = {field_names[0]: data}
                 return output_model.model_validate(wrapped)
         if isinstance(data, dict):
+            patched = dict(data)
             for field_name, field_info in output_model.model_fields.items():
                 annotation = field_info.annotation
-                if getattr(annotation, "__origin__", None) is list and field_name not in data:
-                    data = dict(data)
-                    data[field_name] = []
-            return output_model.model_validate(data)
+                if getattr(annotation, "__origin__", None) is list and field_name not in patched:
+                    patched[field_name] = []
+            return output_model.model_validate(patched)
         raise

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import os
 from datetime import date
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse
 
 from src.agent.graph import build_graph
@@ -21,13 +22,19 @@ store = LocalStore()
 
 task_store = TaskStore()
 
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", "100")) * 1024 * 1024
+
 
 def _ok(data: Any) -> dict[str, Any]:
     return {"ok": True, "data": data, "error": None}
 
 
 def _err(code: str, message: str) -> dict[str, Any]:
-    return {"ok": False, "data": None, "error": {"code": code, "message": message}}
+    status_map = {"not_found": 404, "bad_request": 400}
+    raise HTTPException(
+        status_code=status_map.get(code, 400),
+        detail={"ok": False, "data": None, "error": {"code": code, "message": message}},
+    )
 
 
 @router.post("/documents")
@@ -39,10 +46,18 @@ async def create_document(
     language: str | None = Form(default=None),
 ):
     doc_id = new_doc_id()
-    pdf_bytes = await file.read()
     doc_dir = store.doc_dir(doc_id)
     raw_path = doc_dir / "raw.pdf"
-    raw_path.write_bytes(pdf_bytes)
+
+    # Stream file to disk with size limit check
+    total_size = 0
+    with raw_path.open("wb") as f:
+        while chunk := await file.read(64 * 1024):
+            total_size += len(chunk)
+            if total_size > MAX_UPLOAD_BYTES:
+                raw_path.unlink(missing_ok=True)
+                raise HTTPException(status_code=413, detail=f"File exceeds {MAX_UPLOAD_BYTES // (1024 * 1024)}MB limit")
+            f.write(chunk)
 
     parsed_period = date.fromisoformat(period_end) if period_end else None
     meta = DocumentMeta(

@@ -48,7 +48,11 @@ def extract_tables(pdf_path: str) -> list[Table]:
 def _table_to_markdown(raw_table: list[list[str | None]]) -> str:
     if not raw_table:
         return ""
-    rows = [[str(cell or "").strip() for cell in row] for row in raw_table]
+    max_cols = max(len(row) for row in raw_table)
+    rows = [
+        [str(cell or "").strip() for cell in row] + [""] * (max_cols - len(row))
+        for row in raw_table
+    ]
     header = rows[0]
     separator = ["---" for _ in header]
     md_rows = ["| " + " | ".join(header) + " |", "| " + " | ".join(separator) + " |"]

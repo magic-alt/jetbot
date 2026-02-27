@@ -16,6 +16,11 @@ from src.agent.nodes import (
 from src.agent.state import AgentState
 
 
+# Cache AgentState instances by doc_id to avoid repeated full
+# model_validate/model_dump round-trips on every node transition.
+_state_cache: dict[str, AgentState] = {}
+
+
 def build_graph():
     graph = StateGraph(AgentState)
     graph.add_node("ingest_pdf", _wrap(ingest_pdf))
@@ -26,7 +31,7 @@ def build_graph():
     graph.add_node("extract_key_notes", _wrap(extract_key_notes))
     graph.add_node("generate_risk_signals", _wrap(generate_risk_signals))
     graph.add_node("build_trader_report", _wrap(build_trader_report))
-    graph.add_node("finalize", _wrap(finalize))
+    graph.add_node("finalize", _wrap(finalize, cleanup_cache=True))
 
     graph.set_entry_point("ingest_pdf")
     graph.add_edge("ingest_pdf", "extract_tables")
@@ -48,17 +53,43 @@ def build_graph():
     return graph.compile()
 
 
-def _should_retry(state: dict) -> str:
-    state_obj = AgentState.model_validate(state)
-    if "validation_failed" in state_obj.errors and state_obj.retry_count < 2:
+def _should_retry(state) -> str:
+    # Handle both dict and AgentState instances
+    if isinstance(state, dict):
+        errors = state.get("errors", [])
+        retry_count = state.get("retry_count", 0)
+    else:
+        errors = state.errors
+        retry_count = state.retry_count
+    if "validation_failed" in errors and retry_count < 2:
         return "retry"
     return "ok"
 
 
-def _wrap(fn):
-    def _inner(state: dict) -> dict:
-        state_obj = AgentState.model_validate(state)
+def _wrap(fn, *, cleanup_cache: bool = False):
+    def _inner(state) -> dict:
+        # Handle both dict and AgentState instances from LangGraph
+        if isinstance(state, AgentState):
+            state_obj = state
+            doc_id = state_obj.doc_meta.doc_id
+        else:
+            doc_meta = state.get("doc_meta", {})
+            doc_id = doc_meta.get("doc_id", "") if isinstance(doc_meta, dict) else ""
+
+            # Reuse cached AgentState to skip expensive model_validate
+            if doc_id and doc_id in _state_cache:
+                state_obj = _state_cache[doc_id]
+            else:
+                state_obj = AgentState.model_validate(state)
+
         next_state = fn(state_obj)
+
+        if doc_id:
+            if cleanup_cache:
+                _state_cache.pop(doc_id, None)
+            else:
+                _state_cache[doc_id] = next_state
+
         return next_state.model_dump()
 
     return _inner

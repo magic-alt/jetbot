@@ -9,7 +9,7 @@ from src.schemas.models import DocumentMeta, Page
 
 def test_pipeline_with_fake_pages(tmp_path: Path):
     meta = DocumentMeta(doc_id="test-doc", filename="fake.pdf")
-    pages = [Page(page_number=1, text="?????\n???? 100\n???? 40\n??????? 60", images=[])]
+    pages = [Page(page_number=1, text="资产负债表\n资产总计 100\n负债合计 40\n所有者权益合计 60", images=[])]
     state = AgentState(
         doc_meta=meta,
         pdf_path=None,

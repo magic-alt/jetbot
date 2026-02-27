@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import os
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -46,21 +47,25 @@ class StructuredPromptRequest:
 
 
 _logger = get_logger(__name__)
-_cached_client: LLMClient | None = None
 
 
-def get_default_llm_client() -> LLMClient:
-    global _cached_client
-    if _cached_client is not None:
-        return _cached_client
+@functools.lru_cache(maxsize=1)
+def _build_llm_client() -> LLMClient:
     api_key = os.getenv("OPENAI_API_KEY")
     if api_key:
         from src.llm.openai_client import OpenAILLMClient
 
-        _cached_client = OpenAILLMClient(api_key=api_key, model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"))
-    else:
-        _cached_client = MockLLMClient()
-    return _cached_client
+        return OpenAILLMClient(api_key=api_key, model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"))
+    return MockLLMClient()
+
+
+def get_default_llm_client() -> LLMClient:
+    return _build_llm_client()
+
+
+def reset_llm_client() -> None:
+    """Clear cached LLM client. Useful for testing or configuration changes."""
+    _build_llm_client.cache_clear()
 
 
 def validate_model(model_cls: type, data: dict[str, Any]) -> Any:

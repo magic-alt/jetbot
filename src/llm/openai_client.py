@@ -3,12 +3,16 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from openai import OpenAI
 from pydantic import ValidationError
 
 from src.llm.base import StructuredPromptRequest
+from src.utils.logging import get_logger
+
+_logger = get_logger(__name__)
 
 try:
     from langchain_core.messages import BaseMessage
@@ -63,12 +67,13 @@ class OpenAILLMClient:
                     response_format={"type": "json_schema", "json_schema": json_schema},
                 )
                 return response.output_text
-            except Exception:
-                pass
+            except Exception as exc:
+                _logger.warning("openai_json_schema_fallback", extra={"error": str(exc)})
         try:
             response = self._client.responses.create(model=self._model, input=messages)
             return response.output_text
-        except Exception:
+        except Exception as exc:
+            _logger.warning("openai_responses_fallback", extra={"error": str(exc)})
             completion = self._client.chat.completions.create(model=self._model, messages=messages)
             return completion.choices[0].message.content or "{}"
 
@@ -127,15 +132,23 @@ class OpenAILLMClient:
                 parallel = RunnableParallel(**chains)
                 return parallel.invoke(sample_input, config=_runnable_config(run_name, tags, metadata))
 
-        return {
-            key: self.invoke_structured(
-                request,
-                run_name=f"{run_name}.{key}" if run_name else key,
-                tags=tags,
-                metadata=metadata,
-            )
-            for key, request in requests.items()
-        }
+        # Different input_values: run in parallel using threads
+        results: dict[str, Any] = {}
+        with ThreadPoolExecutor(max_workers=min(len(requests), 4)) as pool:
+            futures = {
+                pool.submit(
+                    self.invoke_structured,
+                    request,
+                    run_name=f"{run_name}.{key}" if run_name else key,
+                    tags=tags,
+                    metadata=metadata,
+                ): key
+                for key, request in requests.items()
+            }
+            for future in as_completed(futures):
+                key = futures[future]
+                results[key] = future.result()
+        return results
 
 
 def _message_to_text(message: BaseMessage | str) -> str:
@@ -159,7 +172,8 @@ def _message_to_text(message: BaseMessage | str) -> str:
 def _render_user_prompt(template: str, values: dict[str, Any]) -> str:
     try:
         return template.format(**values)
-    except Exception:
+    except KeyError as exc:
+        _logger.warning("user_prompt_missing_key", extra={"key": str(exc), "template_keys": list(values.keys())})
         return template
 
 

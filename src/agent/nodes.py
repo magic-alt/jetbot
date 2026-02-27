@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, ValidationError
 from src.agent.state import AgentState
 from src.finance.normalizer import normalize_account_name
 from src.finance.signals import generate_signals
+from src.finance.utils import table_rows
 from src.finance.validators import validate_statements
 from src.llm.base import StructuredPromptRequest, get_default_llm_client, langsmith_metadata
 from src.pdf.extractor import PDFExtractor
@@ -83,7 +84,7 @@ def ingest_pdf(state: AgentState) -> AgentState:
 
 def extract_tables(state: AgentState) -> AgentState:
     start_ms = monotonic_ms()
-    if state.pdf_path:
+    if state.pdf_path and "fake_pages" not in state.debug:
         try:
             state.tables = extract_tables_from_pdf(state.pdf_path)
         except Exception as exc:
@@ -101,14 +102,37 @@ def detect_sections_and_chunk(state: AgentState) -> AgentState:
     current_start = 1
     current_section: str | None = None
 
-    heading_pattern = re.compile(r"^(\d+\.|[IVX]+\.|[A-Z][A-Za-z\s]{2,})")
+    # Support both English and Chinese heading formats
+    heading_pattern = re.compile(
+        r"^("
+        r"\d+\.|"                                           # 1. 2. 3.
+        r"[IVX]+\.|"                                        # I. II. III.
+        r"[A-Z][A-Za-z\s]{2,}|"                             # English Title Case
+        r"[一二三四五六七八九十]+[、.]|"                      # 一、 二、
+        r"（[一二三四五六七八九十]+）|"                       # （一） （二）
+        r"第[一二三四五六七八九十\d]+[章节篇部分条]"          # 第一章 第二节
+        r")"
+    )
 
     for page in state.pages:
         lines = page.text.splitlines()
         for line in lines:
             line_text = line.strip()
             if heading_pattern.match(line_text):
+                # When a new heading is detected, flush the current chunk
+                if current_text.strip():
+                    chunks.extend(
+                        _build_chunks_from_text(
+                            current_text,
+                            current_start,
+                            page.page_number,
+                            current_section,
+                        )
+                    )
+                    current_text = ""
+                    current_start = page.page_number
                 current_section = line_text
+
         if len(current_text) + len(page.text) > 1500 and current_text:
             chunks.extend(
                 _build_chunks_from_text(
@@ -143,6 +167,21 @@ def extract_financial_statements(state: AgentState) -> AgentState:
     statements: dict[str, FinancialStatement] = {}
     tables_by_type = {"balance": [], "income": [], "cashflow": []}
 
+    # Build retry context from previous validation failures
+    retry_context = ""
+    if state.retry_count > 0 and state.validation_results:
+        prev_issues = state.validation_results.get("issues", [])
+        prev_checks = state.validation_results.get("checks", {})
+        if prev_issues:
+            retry_context = (
+                f"IMPORTANT: Previous extraction attempt failed validation "
+                f"(retry {state.retry_count}). Issues found: {', '.join(prev_issues)}. "
+                f"Checks: {json.dumps(prev_checks)}. "
+                f"Please pay extra attention to these problems and ensure "
+                f"totals are consistent (assets = liabilities + equity), "
+                f"units are uniform, and all key fields are populated."
+            )
+
     for table in state.tables:
         kind = _detect_statement_type(table)
         if kind:
@@ -155,7 +194,7 @@ def extract_financial_statements(state: AgentState) -> AgentState:
     missing = [k for k in ("income", "balance", "cashflow") if k not in statements]
     if missing:
         for kind in missing:
-            statements[kind] = _llm_statement(state, kind)
+            statements[kind] = _llm_statement(state, kind, retry_context=retry_context)
 
     state.statements = statements
     state.debug["statement_types"] = list(statements.keys())
@@ -170,11 +209,11 @@ def validate_and_reconcile(state: AgentState) -> AgentState:
         issue in {"balance_equation_failed", "balance_missing_totals"} or issue.startswith("unit_mismatch")
         for issue in state.validation_results.get("issues", [])
     )
+    # Remove any previous validation_failed entries before deciding, ensuring idempotency
+    state.errors = [err for err in state.errors if err != "validation_failed"]
     if severe:
         state.errors.append("validation_failed")
         state.retry_count += 1
-    else:
-        state.errors = [err for err in state.errors if err != "validation_failed"]
     log_node(logger, state.doc_meta.doc_id, "validate_and_reconcile", start_ms)
     return state
 
@@ -373,6 +412,9 @@ def build_trader_report(state: AgentState) -> AgentState:
 
 def finalize(state: AgentState) -> AgentState:
     start_ms = monotonic_ms()
+    # Remove non-serializable cached objects from debug before saving
+    state.debug.pop("_rag_index", None)
+
     store = LocalStore(state.data_dir or "data")
     store.save_meta(state.doc_meta.doc_id, state.doc_meta)
     store.save_json(state.doc_meta.doc_id, "extracted/pages.json", [p.model_dump() for p in state.pages])
@@ -418,6 +460,14 @@ def _split_text(text: str, target_size: int) -> list[str]:
     parts: list[str] = []
     current = ""
     for paragraph in text.split("\n\n"):
+        # If a single paragraph exceeds target_size, split it further by sentences
+        if len(paragraph) > target_size:
+            if current:
+                parts.append(current)
+                current = ""
+            for chunk in _split_long_paragraph(paragraph, target_size):
+                parts.append(chunk)
+            continue
         next_block = (current + "\n\n" + paragraph).strip() if current else paragraph
         if len(next_block) > target_size and current:
             parts.append(current)
@@ -429,17 +479,54 @@ def _split_text(text: str, target_size: int) -> list[str]:
     return parts
 
 
-def _detect_statement_type(table: Table) -> str | None:
-    text = " ".join(cell.text for cell in table.cells).lower()
-    balance_keywords = ["balance sheet", "statement of financial position", "\u8d44\u4ea7\u8d1f\u503a\u8868"]
-    income_keywords = ["income statement", "profit and loss", "statement of operations", "\u5229\u6da6\u8868"]
-    cashflow_keywords = ["cash flow", "statement of cash flows", "\u73b0\u91d1\u6d41\u91cf\u8868"]
+def _split_long_paragraph(text: str, target_size: int) -> list[str]:
+    """Split a long paragraph by sentence boundaries, falling back to hard cuts."""
+    sentences = re.split(r"(?<=[。！？.!?\n])", text)
+    parts: list[str] = []
+    current = ""
+    for sentence in sentences:
+        if not sentence:
+            continue
+        candidate = current + sentence
+        if len(candidate) > target_size and current:
+            parts.append(current)
+            current = sentence
+        else:
+            current = candidate
+    while len(current) > target_size:
+        parts.append(current[:target_size])
+        current = current[target_size:]
+    if current:
+        parts.append(current)
+    return parts
 
-    if any(keyword in text for keyword in balance_keywords):
+
+def _detect_statement_type(table: Table) -> str | None:
+    balance_keywords = ["balance sheet", "statement of financial position", "资产负债表"]
+    income_keywords = ["income statement", "profit and loss", "statement of operations", "利润表"]
+    cashflow_keywords = ["cash flow", "statement of cash flows", "现金流量表"]
+
+    # Check table title first (cheapest check)
+    if table.title:
+        title_lower = table.title.lower()
+        if any(kw in title_lower for kw in balance_keywords):
+            return "balance"
+        if any(kw in title_lower for kw in income_keywords):
+            return "income"
+        if any(kw in title_lower for kw in cashflow_keywords):
+            return "cashflow"
+
+    # Fall back to checking only the first few rows of cells
+    n_cols = table.n_cols or 1
+    max_cells = n_cols * 3  # first 3 rows
+    header_cells = table.cells[:max_cells] if len(table.cells) > max_cells else table.cells
+    text = " ".join(cell.text for cell in header_cells).lower()
+
+    if any(kw in text for kw in balance_keywords):
         return "balance"
-    if any(keyword in text for keyword in income_keywords):
+    if any(kw in text for kw in income_keywords):
         return "income"
-    if any(keyword in text for keyword in cashflow_keywords):
+    if any(kw in text for kw in cashflow_keywords):
         return "cashflow"
     return None
 
@@ -448,7 +535,7 @@ def _tables_to_statement(kind: str, tables: list[Table]) -> FinancialStatement:
     line_items: list[StatementLineItem] = []
     totals: dict[str, float] = {}
     for table in tables:
-        rows = _table_rows(table)
+        rows = table_rows(table)
         for row in rows:
             if not row:
                 continue
@@ -464,7 +551,7 @@ def _tables_to_statement(kind: str, tables: list[Table]) -> FinancialStatement:
                 unit=None,
                 currency=None,
                 notes=None,
-                source_refs=table.source_refs,
+                source_refs=list(table.source_refs),
             )
             line_items.append(item)
             if name_norm in {"total_assets", "total_liabilities", "total_equity", "net_income", "operating_cf", "revenue"} and value_current is not None:
@@ -480,31 +567,64 @@ def _tables_to_statement(kind: str, tables: list[Table]) -> FinancialStatement:
     )
 
 
-def _table_rows(table: Table) -> list[list[str]]:
-    rows: dict[int, list[str]] = {}
-    for cell in table.cells:
-        rows.setdefault(cell.row, [])
-        while len(rows[cell.row]) <= cell.col:
-            rows[cell.row].append("")
-        rows[cell.row][cell.col] = cell.text
-    return [rows[i] for i in sorted(rows.keys())]
+_UNIT_MULTIPLIERS = {
+    "万元": 1e4,
+    "亿元": 1e8,
+    "百万": 1e6,
+    "千万": 1e7,
+    "万": 1e4,
+    "亿": 1e8,
+}
+
+# Characters that indicate negative values in Chinese financial reports
+_NEGATIVE_MARKERS = re.compile(r"^[△▲\-－]")
 
 
 def _parse_number(value: str | None) -> float | None:
     if value is None:
         return None
-    text = value.replace(",", "").strip()
+    text = value.replace(",", "").replace(" ", "").strip()
     if not text:
         return None
+
+    # Handle parenthetical negatives: (1234.56) or （1234.56）
     negative = False
-    if text.startswith("(") and text.endswith(")"):
+    if (text.startswith("(") and text.endswith(")")) or (text.startswith("（") and text.endswith("）")):
         negative = True
-        text = text[1:-1]
+        text = text[1:-1].strip()
+
+    # Handle leading negative markers: △, ▲, -, －
+    if not negative and _NEGATIVE_MARKERS.match(text):
+        negative = True
+        text = _NEGATIVE_MARKERS.sub("", text).strip()
+
+    # Strip percentage sign (return as decimal proportion)
+    is_percent = False
+    if text.endswith("%") or text.endswith("％"):
+        is_percent = True
+        text = text[:-1].strip()
+
+    # Strip currency symbols
+    text = text.lstrip("$¥￥€£＄")
+
+    # Check for Chinese unit suffixes and apply multiplier
+    multiplier = 1.0
+    for unit, mult in _UNIT_MULTIPLIERS.items():
+        if text.endswith(unit):
+            multiplier = mult
+            text = text[: -len(unit)].strip()
+            break
+
     try:
         num = float(text)
-        return -num if negative else num
     except ValueError:
         return None
+
+    if is_percent:
+        num /= 100.0
+
+    num *= multiplier
+    return -num if negative else num
 
 
 def _load_prompt(name: str) -> str:
@@ -512,21 +632,30 @@ def _load_prompt(name: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _llm_statement(state: AgentState, kind: str) -> FinancialStatement:
+def _llm_statement(state: AgentState, kind: str, *, retry_context: str = "") -> FinancialStatement:
     system = _load_prompt("statement_extraction_prompt.md")
     context = _build_rag_context(
         state,
         query=f"{kind} statement line items totals current prior period",
         top_k=10,
     )
+
+    user_template = (
+        "Target statement type: {statement_type}.\n"
+        "Use only this context:\n{context}\n"
+    )
+    input_values: dict[str, str] = {"statement_type": kind, "context": context}
+
+    if retry_context:
+        user_template += "{retry_context}\n"
+        input_values["retry_context"] = retry_context
+
+    user_template += "Return one FinancialStatement object."
+
     request = StructuredPromptRequest(
         system_template=system,
-        user_template=(
-            "Target statement type: {statement_type}.\n"
-            "Use only this context:\n{context}\n"
-            "Return one FinancialStatement object."
-        ),
-        input_values={"statement_type": kind, "context": context},
+        user_template=user_template,
+        input_values=input_values,
         output_model=FinancialStatement,
     )
 
@@ -604,36 +733,47 @@ def _call_llm_parallel_structured(
     node_name: str,
 ) -> dict[str, Any]:
     client = get_default_llm_client()
-    last_error: Exception | None = None
+    results: dict[str, Any] = {}
+    remaining = dict(requests)
 
     for attempt in range(2):
-        try:
-            return client.invoke_parallel(
-                requests,
-                run_name=node_name,
-                tags=["financial-report-agent", node_name, "parallel"],
-                metadata=langsmith_metadata(
-                    state.doc_meta.doc_id,
-                    node_name,
-                    attempt=attempt + 1,
-                    parallel_branches=sorted(list(requests.keys())),
-                ),
-            )
-        except Exception as exc:
-            last_error = exc
+        failed: dict[str, StructuredPromptRequest] = {}
+        for key, request in remaining.items():
+            try:
+                results[key] = client.invoke_structured(
+                    request,
+                    run_name=f"{node_name}.{key}",
+                    tags=["financial-report-agent", node_name, "parallel"],
+                    metadata=langsmith_metadata(
+                        state.doc_meta.doc_id,
+                        node_name,
+                        attempt=attempt + 1,
+                        branch=key,
+                    ),
+                )
+            except Exception:
+                failed[key] = request
+        if not failed:
+            break
+        remaining = failed
 
-    if last_error is not None:
-        state.errors.append(f"{node_name}_llm_parallel_failed:{last_error}")
-    return {}
+    if remaining:
+        state.errors.append(f"{node_name}_llm_parallel_failed:{list(remaining.keys())}")
+    return results
 
 
 def _build_rag_context(state: AgentState, query: str, *, top_k: int) -> str:
-    index = LocalVectorIndex.from_chunks_and_tables(state.chunks, state.tables)
-    docs = index.search(query, k=top_k)
+    # Cache the vector index in state.debug to avoid rebuilding on each call
+    cached_index = state.debug.get("_rag_index")
+    if cached_index is None:
+        cached_index = LocalVectorIndex.from_chunks_and_tables(state.chunks, state.tables)
+        state.debug["_rag_index"] = cached_index
+
+    docs = cached_index.search(query, k=top_k)
 
     retrieval_debug = state.debug.setdefault("retrieval", {})
     retrieval_debug[query] = {
-        "indexed_docs": index.size,
+        "indexed_docs": cached_index.size,
         "returned_docs": len(docs),
     }
 

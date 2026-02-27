@@ -8,9 +8,9 @@ def test_validate_balance_equation():
     balance = FinancialStatement(
         statement_type="balance",
         line_items=[
-            StatementLineItem(name_raw="????", name_norm="total_assets", value_current=100.0, value_prior=None, unit=None, currency=None, notes=None, source_refs=[]),
-            StatementLineItem(name_raw="????", name_norm="total_liabilities", value_current=40.0, value_prior=None, unit=None, currency=None, notes=None, source_refs=[]),
-            StatementLineItem(name_raw="???????", name_norm="total_equity", value_current=60.0, value_prior=None, unit=None, currency=None, notes=None, source_refs=[]),
+            StatementLineItem(name_raw="资产总计", name_norm="total_assets", value_current=100.0, value_prior=None, unit=None, currency=None, notes=None, source_refs=[]),
+            StatementLineItem(name_raw="负债合计", name_norm="total_liabilities", value_current=40.0, value_prior=None, unit=None, currency=None, notes=None, source_refs=[]),
+            StatementLineItem(name_raw="所有者权益合计", name_norm="total_equity", value_current=60.0, value_prior=None, unit=None, currency=None, notes=None, source_refs=[]),
         ],
         totals={"total_assets": 100.0, "total_liabilities": 40.0, "total_equity": 60.0},
         extraction_confidence=0.9,
