@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from src.schemas.models import (
     Chunk,
     DocumentMeta,
+    EventStudyResult,
     FinancialStatement,
     KeyNote,
     Page,
@@ -28,6 +29,7 @@ class AgentState(BaseModel):
     validation_results: dict[str, Any] = Field(default_factory=dict)
     risk_signals: list[RiskSignal] = Field(default_factory=list)
     trader_report: TraderReport | None = None
+    event_study_results: list[EventStudyResult] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     debug: dict[str, Any] = Field(default_factory=dict)
 

@@ -73,9 +73,22 @@ postgres = [
 s3 = [
   "boto3>=1.34",
 ]
+# Market data providers (P5): pip install financial-report-agent[market]
+market = [
+  "tushare>=1.4",
+  "polygon-api-client>=1.12",
+  "matplotlib>=3.8",
+]
+# Monitoring & observability (P7): pip install financial-report-agent[monitoring]
+monitoring = [
+  "prometheus-client>=0.20",
+  "opentelemetry-api>=1.22",
+  "opentelemetry-sdk>=1.22",
+  "opentelemetry-exporter-otlp>=1.22",
+]
 # Install everything
 all = [
-  "financial-report-agent[ocr,tables,embeddings,anthropic,celery,postgres,s3]",
+  "financial-report-agent[ocr,tables,embeddings,anthropic,celery,postgres,s3,market,monitoring]",
 ]
 
 [tool.setuptools.packages.find]

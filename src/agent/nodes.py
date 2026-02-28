@@ -18,6 +18,7 @@ from src.pdf.extractor import PDFExtractor
 from src.pdf.tables import extract_tables as extract_tables_from_pdf
 from src.schemas.models import (
     Chunk,
+    EventStudyResult,
     FinancialStatement,
     KeyNote,
     Page,
@@ -456,6 +457,60 @@ def build_trader_report(state: AgentState) -> AgentState:
     return state
 
 
+def run_event_study_node(state: AgentState) -> AgentState:
+    """Optional node: runs event study if market data is available.
+
+    Looks for a ticker in doc_meta.company or debug['ticker'].
+    Uses DummyMarketDataProvider by default (no-op).
+    When real market data is configured, performs multi-window event study
+    and optionally saves a chart PNG.
+    """
+    start_ms = monotonic_ms()
+    from src.market.event_study import run_multi_window_study, save_event_study_chart
+    from src.market.provider import get_market_data_provider
+
+    provider = get_market_data_provider()
+    ticker = state.debug.get("ticker") or state.doc_meta.company or ""
+    event_date = state.doc_meta.period_end
+
+    if not ticker or not event_date:
+        state.debug["event_study"] = "skipped:no_ticker_or_date"
+        log_node(logger, state.doc_meta.doc_id, "run_event_study_node", start_ms)
+        return state
+
+    try:
+        from datetime import timedelta
+        # Fetch price data: 150 days before to 10 days after event
+        start = event_date - timedelta(days=150)
+        end = event_date + timedelta(days=10)
+        prices = provider.get_prices(ticker, start, end)
+
+        if prices.empty:
+            state.debug["event_study"] = "skipped:no_price_data"
+            log_node(logger, state.doc_meta.doc_id, "run_event_study_node", start_ms)
+            return state
+
+        results = run_multi_window_study(prices, event_date)
+        state.event_study_results = results
+        state.debug["event_study"] = f"completed:{len(results)}_windows"
+
+        # Save chart
+        data_dir = state.data_dir or "data"
+        store = LocalStore(data_dir)
+        report_dir = store.ensure_layout(state.doc_meta.doc_id).get("report")
+        if report_dir:
+            chart_path = Path(str(report_dir)) / "event_study.png"
+            save_event_study_chart(prices, event_date, (-5, 5), chart_path)
+            state.debug["event_study_chart"] = str(chart_path)
+
+    except Exception as exc:
+        state.errors.append(f"event_study_failed:{exc}")
+        state.debug["event_study"] = f"failed:{exc}"
+
+    log_node(logger, state.doc_meta.doc_id, "run_event_study_node", start_ms)
+    return state
+
+
 def finalize(state: AgentState) -> AgentState:
     start_ms = monotonic_ms()
     # Remove non-serializable cached objects from debug before saving
@@ -468,6 +523,12 @@ def finalize(state: AgentState) -> AgentState:
     store.save_json(state.doc_meta.doc_id, "extracted/statements.json", {k: v.model_dump() for k, v in state.statements.items()})
     store.save_json(state.doc_meta.doc_id, "extracted/notes.json", [n.model_dump() for n in state.notes])
     store.save_json(state.doc_meta.doc_id, "extracted/risk_signals.json", [s.model_dump() for s in state.risk_signals])
+    if state.event_study_results:
+        store.save_json(
+            state.doc_meta.doc_id,
+            "extracted/event_study.json",
+            [r.model_dump(mode="json") for r in state.event_study_results],
+        )
     if state.trader_report:
         store.save_json(
             state.doc_meta.doc_id,

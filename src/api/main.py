@@ -14,9 +14,12 @@ from dotenv import load_dotenv
 
 from src.api.routes import router
 from src.utils.logging import configure_logging
+from src.utils.metrics_collector import metrics
+from src.utils.tracing import init_tracing
 
 load_dotenv()
 configure_logging()
+init_tracing()
 
 app = FastAPI(title="Financial Report Agent", version="0.1.0")
 
@@ -97,8 +100,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """Per-IP sliding-window rate limiter middleware."""
 
     async def dispatch(self, request: Request, call_next: Any) -> Response:
-        # Health check is always exempt
-        if request.url.path in ("/health", "/v1/health"):
+        # Health check and metrics are always exempt
+        if request.url.path in ("/health", "/v1/health", "/metrics"):
             return await call_next(request)
 
         limits = _read_rate_limits()
@@ -125,3 +128,12 @@ app.include_router(router, prefix="/v1")
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "version": "0.1.0"}
+
+
+# ── Prometheus metrics endpoint (no auth, not rate-limited) ──────────────
+@app.get("/metrics")
+async def prometheus_metrics() -> Response:
+    return Response(
+        content=metrics.generate_metrics(),
+        media_type=metrics.content_type,
+    )

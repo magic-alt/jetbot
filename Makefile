@@ -1,4 +1,4 @@
-.PHONY: dev test fmt lint typecheck worker
+.PHONY: dev test fmt lint typecheck worker eval docker-build docker-up docker-down
 
 # === Development ===
 dev:
@@ -19,3 +19,17 @@ typecheck:
 # === Task Queue (Phase 4) ===
 worker:
 	celery -A src.tasks worker --loglevel=info --concurrency=2
+
+# === Evaluation (Phase 6) ===
+eval:
+	python -m pytest tests/golden/ -v --tb=short
+
+# === Docker (Phase 7) ===
+docker-build:
+	docker build -t jetbot:latest .
+
+docker-up:
+	docker compose up -d
+
+docker-down:
+	docker compose down

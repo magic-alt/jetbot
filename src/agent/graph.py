@@ -14,6 +14,7 @@ from src.agent.nodes import (
     finalize,
     generate_risk_signals,
     ingest_pdf,
+    run_event_study_node,
     validate_and_reconcile,
 )
 from src.agent.state import AgentState
@@ -39,6 +40,7 @@ def build_graph():
     graph.add_node("extract_key_notes", _wrap(extract_key_notes))
     graph.add_node("generate_risk_signals", _wrap(generate_risk_signals))
     graph.add_node("build_trader_report", _wrap(build_trader_report))
+    graph.add_node("run_event_study_node", _wrap(run_event_study_node))
     graph.add_node("finalize", _wrap(finalize, cleanup_cache=True))
 
     graph.set_entry_point("ingest_pdf")
@@ -55,7 +57,8 @@ def build_graph():
 
     graph.add_edge("extract_key_notes", "generate_risk_signals")
     graph.add_edge("generate_risk_signals", "build_trader_report")
-    graph.add_edge("build_trader_report", "finalize")
+    graph.add_edge("build_trader_report", "run_event_study_node")
+    graph.add_edge("run_event_study_node", "finalize")
     graph.add_edge("finalize", END)
 
     return graph.compile()
