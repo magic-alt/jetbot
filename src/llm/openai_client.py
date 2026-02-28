@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
@@ -10,6 +11,7 @@ from openai import OpenAI
 from pydantic import ValidationError
 
 from src.llm.base import StructuredPromptRequest
+from src.llm.token_manager import check_and_truncate
 from src.utils.logging import get_logger
 
 _logger = get_logger(__name__)
@@ -31,7 +33,8 @@ except Exception:  # pragma: no cover - optional dependency
 
 class OpenAILLMClient:
     def __init__(self, api_key: str, model: str) -> None:
-        self._client = OpenAI(api_key=api_key)
+        _timeout = int(os.getenv("LLM_TIMEOUT_S", "60"))
+        self._client = OpenAI(api_key=api_key, timeout=float(_timeout))
         self._model = model
         self._chat_model = None
         if LANGCHAIN_AVAILABLE and ChatOpenAI is not None:
@@ -39,9 +42,11 @@ class OpenAILLMClient:
                 api_key=api_key,
                 model=model,
                 temperature=0,
+                timeout=float(_timeout),
             )
 
     async def chat(self, system: str, user: str, json_schema: dict | None = None) -> str:
+        system, user = check_and_truncate(system, user, model=self._model)
         if self._chat_model is not None and ChatPromptTemplate is not None:
             prompt = ChatPromptTemplate.from_messages(
                 [

@@ -28,7 +28,7 @@ from src.schemas.models import (
     TraderReport,
 )
 from src.storage.local_store import LocalStore
-from src.storage.vector_index import LocalVectorIndex
+from src.storage.vector_index import LocalVectorIndex, build_rag_index
 from src.utils.ids import new_doc_id
 from src.utils.logging import get_logger, log_node
 from src.utils.time import monotonic_ms
@@ -70,6 +70,10 @@ def ingest_pdf(state: AgentState) -> AgentState:
             result = extractor.extract(state.pdf_path or "", render_dir=render_dir)
             state.pages = result.pages
             state.needs_ocr = result.needs_ocr
+
+            # OCR integration: supplement sparse pages with OCR text
+            if result.needs_ocr and result.ocr_page_indices and state.pdf_path:
+                _apply_ocr_to_pages(state, result.ocr_page_indices, store)
         except Exception as exc:
             state.errors.append(f"ingest_failed:{exc}")
             state.pages = []
@@ -80,6 +84,48 @@ def ingest_pdf(state: AgentState) -> AgentState:
         store.save_json(state.doc_meta.doc_id, "extracted/pages.json", [p.model_dump() for p in state.pages])
     log_node(logger, state.doc_meta.doc_id, "ingest_pdf", start_ms)
     return state
+
+
+def _apply_ocr_to_pages(state: AgentState, ocr_page_indices: list[int], store: LocalStore) -> None:
+    """Run OCR on sparse pages and update state.pages in-place."""
+    try:
+        from src.pdf.ocr import get_ocr_engine
+        from src.pdf.render import render_page
+    except Exception:
+        return
+
+    lang = state.doc_meta.language or "auto"
+    engine = get_ocr_engine(lang)
+    if engine is None:
+        state.debug["ocr_skipped"] = "no_engine_available"
+        return
+
+    pages_dir = str(store.ensure_layout(state.doc_meta.doc_id)["pages"])
+    ocr_count = 0
+    for page_idx in ocr_page_indices:
+        if page_idx >= len(state.pages):
+            continue
+        page = state.pages[page_idx]
+        try:
+            img_path = render_page(
+                state.pdf_path or "",
+                page_number=page.page_number,
+                out_dir=pages_dir,
+                dpi=200,
+            )
+            results = engine.recognize(img_path, lang=lang)
+            ocr_text = " ".join(r.text for r in results if r.text)
+            if ocr_text.strip():
+                state.pages[page_idx] = Page(
+                    page_number=page.page_number,
+                    text=ocr_text,
+                    images=[img_path] + [i for i in page.images if i != img_path],
+                )
+                ocr_count += 1
+        except Exception as exc:
+            state.errors.append(f"ocr_page_{page.page_number}_failed:{exc}")
+
+    state.debug["ocr_pages_processed"] = ocr_count
 
 
 def extract_tables(state: AgentState) -> AgentState:
@@ -766,7 +812,8 @@ def _build_rag_context(state: AgentState, query: str, *, top_k: int) -> str:
     # Cache the vector index in state.debug to avoid rebuilding on each call
     cached_index = state.debug.get("_rag_index")
     if cached_index is None:
-        cached_index = LocalVectorIndex.from_chunks_and_tables(state.chunks, state.tables)
+        lang = state.doc_meta.language or "auto"
+        cached_index = build_rag_index(state.chunks, state.tables, lang=lang)
         state.debug["_rag_index"] = cached_index
 
     docs = cached_index.search(query, k=top_k)

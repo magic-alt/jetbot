@@ -476,55 +476,88 @@ CLI 输出：
 
 ---
 
-## 14. 项目结构（必须按此生成）
+## 14. 项目结构
 
 ```
 repo/
   README.md
+  PROJECT.md                         # 本文档：设计需求与实现指令
+  UPGRADE_PLAN.md                    # 7 阶段升级计划（P1–P4 已完成）
   pyproject.toml
   .env.example
   Makefile
   src/
     api/
-      main.py
-      routes.py
+      main.py                       # FastAPI 入口，CORS、安全头、/health
+      auth.py                       # [P1] API Key 认证中间件
+      routes.py                     # /v1/documents 全部端点
     agent/
-      graph.py
-      nodes.py
-      state.py
+      graph.py                      # LangGraph 状态机工作流
+      nodes.py                      # 9 节点实现
+      state.py                      # AgentState 定义
     pdf/
-      extractor.py
-      tables.py
-      ocr.py
-      render.py
+      extractor.py                  # PyMuPDF 文本抽取 + PDF 格式校验
+      tables.py                     # pdfplumber 表格抽取
+      ocr.py                        # [P2] PaddleOCR + Tesseract 双引擎
+      render.py                     # [P2] PyMuPDF 页面渲染（可配 DPI）
     finance/
       schemas.py
-      normalizer.py
-      validators.py
-      signals.py
+      normalizer.py                 # 科目归一（中英文）
+      validators.py                 # 勾稽校验
+      signals.py                    # 风险信号生成
+      utils.py
     market/
-      provider.py
-      event_study.py
+      provider.py                   # MarketDataProvider（Dummy/YFinance）
+      event_study.py                # 事件研究（收益/波动/成交量）
     llm/
-      base.py
-      mock.py
-      openai_client.py
+      base.py                       # [P3] 多模型路由 + get_llm_client(task)
+      mock.py                       # MockLLMClient
+      openai_client.py              # OpenAI 客户端（含 token 截断）
+      anthropic_client.py           # [P3] Anthropic Claude 客户端
+      token_manager.py              # [P3] Token 计数/截断/分块
     prompts/
-      statement_extraction_prompt.md
-      key_notes_prompt.md
-      trader_report_prompt.md
+      statement_extraction_prompt.md  # [P3] 含 few-shot 示例
+      key_notes_prompt.md             # [P3] 含 few-shot 示例
+      trader_report_prompt.md         # [P3] 含 few-shot 示例
+    schemas/
+      models.py                     # 12+ Pydantic v2 模型
     storage/
-      local_store.py
-      task_store.py
+      local_store.py                # 本地文件存储
+      task_store.py                 # [P4] SQLite 任务状态 + 节点级进度
+      vector_index.py               # [P3] Token-overlap + Embedding + Hybrid RAG
+      backend.py                    # [P4] StorageBackend Protocol 抽象
+      pg_store.py                   # [P4] PostgreSQL 存储后端
+      object_store.py               # [P4] S3/MinIO 对象存储
+    tasks/
+      __init__.py                   # [P4] Celery 应用配置
+      analysis.py                   # [P4] Celery 分析任务（重试策略）
     utils/
-      logging.py
-      ids.py
-      time.py
-    cli.py
+      logging.py                    # 结构化日志
+      ids.py                        # ID 生成
+      time.py                       # 时间工具
+    cli.py                          # Typer CLI（analyze/render-report/show）
   tests/
+    test_auth.py                    # [P1] API Key 认证测试
+    test_input_validation.py        # [P1] 输入校验测试
+    test_ocr.py                     # [P2] OCR 引擎测试
+    test_render.py                  # [P2] 页面渲染测试
+    test_token_manager.py           # [P3] Token 管理测试
+    test_embedding_index.py         # [P3] Embedding/RAG 索引测试
+    test_celery_task.py             # [P4] Celery 任务队列测试
+    test_pg_store.py                # [P4] Postgres 存储测试
+    test_object_store.py            # [P4] S3 对象存储测试
     test_validators.py
+    test_validators_extended.py
     test_signals.py
+    test_signals_extended.py
+    test_schemas.py
+    test_storage.py
     test_pipeline_mock.py
+    test_vector_index.py
+    test_nodes_helpers.py
+    test_normalizer_and_events.py
+  docs/
+    architecture_and_capabilities.md
   data/  (gitignore)
 ```
 
@@ -566,3 +599,15 @@ repo/
 
 ---
 
+## 18. 当前实现进度
+
+| 阶段 | 状态 | 测试数量 | 核心交付物 |
+|------|------|----------|-----------|
+| MVP | ✅ 完成 | 71 | 9 节点 LangGraph 管线、FastAPI 7 端点、CLI 3 命令、Mock/OpenAI LLM |
+| P1: 生产加固 | ✅ 完成 | 108 | API Key 认证、速率限制、输入校验、节点超时、/health 端点 |
+| P2: OCR & PDF 增强 | ✅ 完成 | 108 | PaddleOCR + Tesseract 双引擎 OCR、PyMuPDF 页面渲染、DPI 可配 |
+| P3: LLM & RAG 升级 | ✅ 完成 | 162 | Embedding RAG (FAISS)、Token 管理、Anthropic Claude 客户端、多模型路由、Few-shot 提示词 |
+| P4: 异步队列 & 存储 | ✅ 完成 | 162 | Celery+Redis 任务队列、PostgreSQL 存储、S3/MinIO 对象存储、节点级进度追踪 |
+| P5: 行情 & 事件研究 | ⏳ 待实施 | — | Tushare/Polygon 数据源、CAPM 异常收益、统计显著性检验 |
+| P6: 评测 & QA | ⏳ 待实施 | — | Golden 测试集、准确率指标、回归检测 |
+| P7: 可观测 & DevOps | ⏳ 待实施 | — | Prometheus 指标、OpenTelemetry 追踪、Docker、CI/CD |

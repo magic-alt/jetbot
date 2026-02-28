@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import concurrent.futures
+import os
+
 from langgraph.graph import END, StateGraph
 
 from src.agent.nodes import (
@@ -19,6 +22,11 @@ from src.agent.state import AgentState
 # Cache AgentState instances by doc_id to avoid repeated full
 # model_validate/model_dump round-trips on every node transition.
 _state_cache: dict[str, AgentState] = {}
+
+
+def get_cached_state(doc_id: str) -> AgentState | None:
+    """Return the most recently cached AgentState for *doc_id*, or None."""
+    return _state_cache.get(doc_id)
 
 
 def build_graph():
@@ -82,7 +90,20 @@ def _wrap(fn, *, cleanup_cache: bool = False):
             else:
                 state_obj = AgentState.model_validate(state)
 
-        next_state = fn(state_obj)
+        # Per-node timeout (0 means no limit)
+        timeout_s = int(os.getenv("NODE_TIMEOUT_S", "120"))
+        if timeout_s > 0:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(fn, state_obj)
+                try:
+                    next_state = future.result(timeout=timeout_s)
+                except concurrent.futures.TimeoutError:
+                    state_obj.errors.append(
+                        f"{fn.__name__}_timeout:{timeout_s}s"
+                    )
+                    next_state = state_obj
+        else:
+            next_state = fn(state_obj)
 
         if doc_id:
             if cleanup_cache:
