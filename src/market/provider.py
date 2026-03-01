@@ -164,7 +164,7 @@ def get_market_data_provider(provider_name: str | None = None) -> MarketDataProv
     2. MARKET_DATA_PROVIDER env var
     3. Default to DummyMarketDataProvider
     """
-    name = (provider_name or os.getenv("MARKET_DATA_PROVIDER", "dummy")).lower()
+    name = (provider_name or os.getenv("MARKET_DATA_PROVIDER") or "dummy").lower()
     if name == "tushare":
         return TushareMarketDataProvider()
     if name == "polygon":

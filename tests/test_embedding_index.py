@@ -1,15 +1,12 @@
 """Tests for embedding vector index and RAG factory (src/storage/vector_index.py)."""
 from __future__ import annotations
 
-import os
-from unittest.mock import patch
 
 import pytest
 from src.schemas.models import Chunk, SourceRef, Table
 from src.storage.vector_index import (
     LocalVectorIndex,
     EmbeddingVectorIndex,
-    HybridRetriever,
     build_rag_index,
     _prepare_documents,
     _resolve_model_name,

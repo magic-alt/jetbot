@@ -163,7 +163,7 @@ def reset_llm_client() -> None:
 
 def validate_model(model_cls: type, data: dict[str, Any]) -> Any:
     try:
-        return model_cls.model_validate(data)
+        return model_cls.model_validate(data)  # type: ignore[attr-defined]
     except ValidationError as exc:
         _logger.warning("llm_validation_error", extra={"doc_id": "-", "node_name": "llm", "elapsed_ms": 0, "error": str(exc)})
         raise

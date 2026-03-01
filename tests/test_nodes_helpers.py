@@ -1,7 +1,6 @@
 """Tests for _parse_number and _detect_statement_type in src/agent/nodes.py."""
 from __future__ import annotations
 
-import pytest
 
 from src.agent.nodes import _parse_number, _detect_statement_type, _split_text
 from src.schemas.models import Table, TableCell

@@ -19,7 +19,7 @@ class MarketDataCache:
     """
 
     def __init__(self, cache_dir: str | None = None, ttl_seconds: int | None = None) -> None:
-        self._cache_dir = Path(cache_dir or os.getenv("DATA_DIR", "data")) / ".market_cache"
+        self._cache_dir = Path(cache_dir or os.getenv("DATA_DIR") or "data") / ".market_cache"
         self._ttl = ttl_seconds or int(os.getenv("MARKET_CACHE_TTL", "86400"))  # 24h default
 
     @staticmethod

@@ -9,7 +9,6 @@ local filesystem via *local_fallback_dir*.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -25,27 +24,27 @@ try:
     SA_AVAILABLE = True
 except Exception:  # pragma: no cover
     SA_AVAILABLE = False
-    create_engine = None  # type: ignore[assignment]
-    Session = None  # type: ignore[assignment]
-    declarative_base = None  # type: ignore[assignment]
+    create_engine = None  # type: ignore[assignment,misc]
+    Session = None  # type: ignore[assignment,misc]
+    declarative_base = None  # type: ignore[assignment,misc]
 
 if SA_AVAILABLE and declarative_base is not None:
     Base = declarative_base()
 
-    class DocumentRecord(Base):  # type: ignore[valid-type]
+    class DocumentRecord(Base):  # type: ignore[valid-type,misc]
         __tablename__ = "documents"
         doc_id = Column(String(64), primary_key=True, nullable=False)
         meta_json = Column(Text, nullable=True)
 
-    class ArtifactRecord(Base):  # type: ignore[valid-type]
+    class ArtifactRecord(Base):  # type: ignore[valid-type,misc]
         __tablename__ = "artifacts"
         doc_id = Column(String(64), primary_key=True, nullable=False)
         relative_path = Column(String(256), primary_key=True, nullable=False)
         content = Column(Text, nullable=True)
 else:
-    Base = None  # type: ignore[assignment]
-    DocumentRecord = None  # type: ignore[assignment]
-    ArtifactRecord = None  # type: ignore[assignment]
+    Base = None  # type: ignore[assignment,misc]
+    DocumentRecord = None  # type: ignore[assignment,misc]
+    ArtifactRecord = None  # type: ignore[assignment,misc]
 
 
 class PgStore:
@@ -112,7 +111,7 @@ class PgStore:
                 with session:
                     existing = session.get(DocumentRecord, doc_id)
                     if existing:
-                        existing.meta_json = meta.model_dump_json()
+                        existing.meta_json = meta.model_dump_json()  # type: ignore[assignment]
                     else:
                         session.add(DocumentRecord(doc_id=doc_id, meta_json=meta.model_dump_json()))
                     session.commit()
@@ -132,7 +131,7 @@ class PgStore:
                 with session:
                     record = session.get(DocumentRecord, doc_id)
                     if record and record.meta_json:
-                        return DocumentMeta.model_validate_json(record.meta_json)
+                        return DocumentMeta.model_validate_json(record.meta_json)  # type: ignore[arg-type]
             except Exception:
                 pass
 
@@ -153,7 +152,7 @@ class PgStore:
                 with session:
                     existing = session.get(ArtifactRecord, (doc_id, relative_path))
                     if existing:
-                        existing.content = json_str
+                        existing.content = json_str  # type: ignore[assignment]
                     else:
                         session.add(ArtifactRecord(doc_id=doc_id, relative_path=relative_path, content=json_str))
                     session.commit()
@@ -174,7 +173,7 @@ class PgStore:
                 with session:
                     record = session.get(ArtifactRecord, (doc_id, relative_path))
                     if record and record.content:
-                        return json.loads(record.content)
+                        return json.loads(record.content)  # type: ignore[arg-type]
             except Exception:
                 pass
 
@@ -193,7 +192,7 @@ class PgStore:
                 with session:
                     existing = session.get(ArtifactRecord, (doc_id, relative_path))
                     if existing:
-                        existing.content = text
+                        existing.content = text  # type: ignore[assignment]
                     else:
                         session.add(ArtifactRecord(doc_id=doc_id, relative_path=relative_path, content=text))
                     session.commit()

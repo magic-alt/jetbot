@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.schemas.models import FinancialStatement, KeyNote, RiskSignal, SourceRef
+from src.schemas.models import FinancialStatement, KeyNote, RiskSignal
 
 
 def statement_accuracy(

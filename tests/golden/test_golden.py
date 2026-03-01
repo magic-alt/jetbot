@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -48,7 +47,6 @@ class TestGoldenPipeline:
     def _get_cases() -> list[dict]:
         """Import golden_cases fixture data directly for parametrize ids."""
         # We import the conftest fixture function to get the data at collection time
-        from tests.golden.conftest import golden_cases as _fixture_fn
         # The fixture is a plain function decorated by pytest; call the underlying logic
         # by invoking conftest module-level code. We replicate the data inline instead.
         return [

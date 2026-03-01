@@ -2,7 +2,7 @@
 
 A FastAPI service and CLI for parsing financial report PDFs, extracting structured statements and notes, running validation checks, and generating a trader-style report with evidence references.
 
-Supports mock mode (no API key required), OpenAI, and Anthropic Claude models. Includes OCR for scanned PDFs, embedding-based RAG retrieval, token overflow protection, and optional Celery/Postgres/S3 infrastructure.
+Supports mock mode (no API key required), OpenAI, and Anthropic Claude models. Includes OCR for scanned PDFs, embedding-based RAG retrieval, token overflow protection, market data event study, and optional Celery/Postgres/S3 infrastructure. Fully containerized with Docker, CI/CD via GitHub Actions, and Prometheus metrics.
 
 ## Quick Start (Mock Mode)
 
@@ -90,6 +90,27 @@ S3_SECRET_KEY=minio123
 
 Install: `pip install -e ".[s3]"`
 
+### Market Data Providers (Optional)
+
+Supports multiple market data providers for event study analysis:
+
+```bash
+MARKET_DATA_PROVIDER=tushare   # Chinese A-share (requires TUSHARE_TOKEN)
+MARKET_DATA_PROVIDER=polygon   # US stocks (requires POLYGON_API_KEY)
+MARKET_DATA_PROVIDER=yfinance  # Yahoo Finance (requires yfinance pip package)
+MARKET_DATA_PROVIDER=dummy     # No-op (default)
+```
+
+Install: `pip install -e ".[market]"`
+
+### Docker Deployment (Optional)
+
+```bash
+make docker-build    # Build Docker image
+make docker-up       # Start full stack (API + worker + Redis + Postgres + MinIO)
+make docker-down     # Stop all containers
+```
+
 ## API Examples
 
 ```bash
@@ -120,6 +141,9 @@ curl -H "X-API-Key: your-key" \
 # Get risk signals
 curl -H "X-API-Key: your-key" \
      http://localhost:8000/v1/documents/<doc_id>/risk-signals
+
+# Prometheus metrics (no auth required)
+curl http://localhost:8000/metrics
 ```
 
 Note: `API_KEYS` env var controls authentication. Leave blank to disable auth.
@@ -143,13 +167,16 @@ Results are stored under `data/{doc_id}/`:
 - `extracted/statements.json` — structured financial statements
 - `extracted/notes.json` — key notes (accounting policy, audit opinion, etc.)
 - `extracted/risk_signals.json` — risk signals with evidence
+- `extracted/event_study.json` — event study results (if market data available)
 - `report/trader_report.json` — structured trader report
 - `report/trader_report.md` — markdown trader report
+- `report/event_study.png` — event study chart (if market data available)
 
 ## Development
 
 ```bash
-make test        # Run 162 tests
+make test        # Run 319 tests
+make eval        # Run golden evaluation tests
 make fmt         # Format code (ruff)
 make lint        # Lint code (ruff)
 make typecheck   # Type check (mypy)
@@ -163,6 +190,8 @@ pip install -e ".[anthropic]"    # Anthropic Claude
 pip install -e ".[celery]"       # Celery + Redis
 pip install -e ".[postgres]"     # PostgreSQL + SQLAlchemy
 pip install -e ".[s3]"           # S3/MinIO (boto3)
+pip install -e ".[market]"       # Market data (tushare, polygon, matplotlib)
+pip install -e ".[monitoring]"   # Prometheus + OpenTelemetry
 pip install -e ".[all]"          # Everything
 ```
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from src.finance.utils import fallback_evidence, find_line_item, find_total
 from src.schemas.models import FinancialStatement, KeyNote, RiskSignal, SourceRef
@@ -27,7 +27,7 @@ def generate_signals(
 
     if net_income is not None and operating_cf is not None:
         if net_income > 0 and operating_cf < 0:
-            severity = "high" if abs(operating_cf) > abs(net_income) else "medium"
+            severity: Literal["low", "medium", "high"] = "high" if abs(operating_cf) > abs(net_income) else "medium"
             signals.append(
                 RiskSignal(
                     signal_id=new_doc_id(),
@@ -94,7 +94,7 @@ def _working_capital_signal(
 
     ar_growth = (ar.value_current - ar.value_prior) / max(abs(ar.value_prior), 1.0)
     rev_growth = (revenue.value_current - revenue.value_prior) / max(abs(revenue.value_prior), 1.0)
-    metrics = {"ar_growth": ar_growth, "rev_growth": rev_growth}
+    metrics: dict[str, float | str] = {"ar_growth": ar_growth, "rev_growth": rev_growth}
     if inventory and inventory.value_current is not None and inventory.value_prior is not None:
         inv_growth = (inventory.value_current - inventory.value_prior) / max(abs(inventory.value_prior), 1.0)
         metrics["inventory_growth"] = inv_growth

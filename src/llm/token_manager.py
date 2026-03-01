@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any
 
 from src.utils.logging import get_logger
 

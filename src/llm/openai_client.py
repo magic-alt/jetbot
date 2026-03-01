@@ -24,10 +24,10 @@ try:
 
     LANGCHAIN_AVAILABLE = True
 except Exception:  # pragma: no cover - optional dependency
-    BaseMessage = Any  # type: ignore[assignment]
-    ChatPromptTemplate = None  # type: ignore[assignment]
-    RunnableParallel = None  # type: ignore[assignment]
-    ChatOpenAI = None  # type: ignore[assignment]
+    BaseMessage = Any  # type: ignore[assignment,misc]
+    ChatPromptTemplate = None  # type: ignore[assignment,misc]
+    RunnableParallel = None  # type: ignore[assignment,misc]
+    ChatOpenAI = None  # type: ignore[assignment,misc]
     LANGCHAIN_AVAILABLE = False
 
 
@@ -39,7 +39,7 @@ class OpenAILLMClient:
         self._chat_model = None
         if LANGCHAIN_AVAILABLE and ChatOpenAI is not None:
             self._chat_model = ChatOpenAI(
-                api_key=api_key,
+                api_key=api_key,  # type: ignore[arg-type]
                 model=model,
                 temperature=0,
                 timeout=float(_timeout),
@@ -66,7 +66,7 @@ class OpenAILLMClient:
         ]
         if json_schema:
             try:
-                response = self._client.responses.create(
+                response = self._client.responses.create(  # type: ignore[call-overload]
                     model=self._model,
                     input=messages,
                     response_format={"type": "json_schema", "json_schema": json_schema},
@@ -75,11 +75,11 @@ class OpenAILLMClient:
             except Exception as exc:
                 _logger.warning("openai_json_schema_fallback", extra={"error": str(exc)})
         try:
-            response = self._client.responses.create(model=self._model, input=messages)
+            response = self._client.responses.create(model=self._model, input=messages)  # type: ignore[arg-type]
             return response.output_text
         except Exception as exc:
             _logger.warning("openai_responses_fallback", extra={"error": str(exc)})
-            completion = self._client.chat.completions.create(model=self._model, messages=messages)
+            completion = self._client.chat.completions.create(model=self._model, messages=messages)  # type: ignore[arg-type]
             return completion.choices[0].message.content or "{}"
 
     def invoke_structured(
@@ -99,15 +99,15 @@ class OpenAILLMClient:
             )
             schema = request.output_model or request.output_schema or {"type": "object", "properties": {}}
             chain = prompt | self._chat_model.with_structured_output(schema)
-            return chain.invoke(request.input_values, config=_runnable_config(run_name, tags, metadata))
+            return chain.invoke(request.input_values, config=_runnable_config(run_name, tags, metadata))  # type: ignore[arg-type]
 
-        schema = request.output_schema
+        schema = request.output_schema  # type: ignore[assignment]
         if schema is None and request.output_model is not None:
             schema = request.output_model.model_json_schema()
         text = self._chat_sync(
             request.system_template,
             _render_user_prompt(request.user_template, request.input_values),
-            schema,
+            schema,  # type: ignore[arg-type]
         )
         return _parse_fallback(text, request.output_model)
 
@@ -135,7 +135,7 @@ class OpenAILLMClient:
                     schema = request.output_model or request.output_schema or {"type": "object", "properties": {}}
                     chains[key] = prompt | self._chat_model.with_structured_output(schema)
                 parallel = RunnableParallel(**chains)
-                return parallel.invoke(sample_input, config=_runnable_config(run_name, tags, metadata))
+                return parallel.invoke(sample_input, config=_runnable_config(run_name, tags, metadata))  # type: ignore[arg-type]
 
         # Different input_values: run in parallel using threads
         results: dict[str, Any] = {}

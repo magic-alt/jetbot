@@ -33,7 +33,7 @@ jobs:
         run: python -m mypy src --ignore-missing-imports
 
       - name: Run tests
-        run: python -m pytest -q
+        run: python -m pytest -q --timeout=60
 
   docker:
     runs-on: ubuntu-latest

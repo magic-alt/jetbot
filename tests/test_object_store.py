@@ -1,9 +1,7 @@
 """Tests for S3/local object store (src/storage/object_store.py)."""
 from __future__ import annotations
 
-from pathlib import Path
 
-import pytest
 from src.storage.object_store import ObjectStore
 
 

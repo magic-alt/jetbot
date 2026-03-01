@@ -27,11 +27,9 @@ try:
             from src.agent.graph import build_graph
             from src.agent.state import AgentState
             from src.schemas.models import DocumentMeta
-            from src.storage.local_store import LocalStore
             from src.storage.task_store import TaskStore
 
             data_dir = os.getenv("DATA_DIR", "data")
-            store = LocalStore(data_dir)
             task_store = TaskStore(data_dir)
 
             meta = DocumentMeta.model_validate(meta_dict)

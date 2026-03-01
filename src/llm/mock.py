@@ -70,9 +70,9 @@ class MockLLMClient:
         }
 
 
-def _mock_evidence() -> list[dict[str, object]]:
+def _mock_evidence() -> list[SourceRef]:
     ref = SourceRef(ref_type="page_text", page=1, table_id=None, quote="mock evidence", confidence=0.2)
-    return [ref.model_dump()]
+    return [ref]
 
 
 def _mock_statement(prompt: str = "") -> dict[str, object]:

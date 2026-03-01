@@ -1,9 +1,7 @@
 """Tests for PgStore and StorageBackend protocol (src/storage/pg_store.py, backend.py)."""
 from __future__ import annotations
 
-from pathlib import Path
 
-import pytest
 from src.schemas.models import DocumentMeta
 from src.storage.backend import StorageBackend, get_storage_backend
 from src.storage.local_store import LocalStore

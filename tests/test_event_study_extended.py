@@ -179,7 +179,7 @@ class TestSaveEventStudyChart:
     def test_chart_saved_to_path(self, tmp_path):
         """Test that chart is saved as a file (skips if matplotlib unavailable)."""
         try:
-            import matplotlib
+            import matplotlib  # noqa: F401
         except ImportError:
             pytest.skip("matplotlib not installed")
 
@@ -195,7 +195,7 @@ class TestSaveEventStudyChart:
     def test_chart_with_benchmark(self, tmp_path):
         """Test chart generation with benchmark overlay."""
         try:
-            import matplotlib
+            import matplotlib  # noqa: F401
         except ImportError:
             pytest.skip("matplotlib not installed")
 

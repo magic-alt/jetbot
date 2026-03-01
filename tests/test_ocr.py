@@ -94,7 +94,6 @@ class TestRunOCR:
 
     def test_engine_exception_is_gracefully_handled(self, monkeypatch):
         """run_ocr catches per-image exceptions and returns whatever succeeded."""
-        from src.pdf.ocr import OCRResult
 
         class BrokenEngine:
             def recognize(self, image_path: str, lang: str) -> list[OCRResult]:

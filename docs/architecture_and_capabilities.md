@@ -9,7 +9,7 @@
 - 当前版本已经达到的效果（可运行能力）
 - 已知限制与后续扩展方向
 
-说明基于当前代码实现（`src/` + `tests/`），涵盖 MVP 及 P1–P4 阶段升级。
+说明基于当前代码实现（`src/` + `tests/`），涵盖 MVP 及 P1–P7 阶段升级。
 
 ## 2. 系统定位
 
@@ -39,7 +39,7 @@
 
 **2. 编排层（LangGraph）**
 - `src/agent/graph.py` — 有状态工作流，含条件分支与重试
-- `src/agent/nodes.py` — 9 节点函数（含节点超时、token 截断、RAG 上下文组装）
+- `src/agent/nodes.py` — 10 节点函数（含节点超时、token 截断、RAG 上下文组装）
 - `src/agent/state.py` — `AgentState` 定义
 
 **3. PDF 处理层**
@@ -60,7 +60,12 @@
 - `src/llm/anthropic_client.py` — [P3] Anthropic Claude 客户端（drop-in 替换）
 - `src/llm/token_manager.py` — [P3] Token 计数（tiktoken / 启发式）、截断、分块、上下文溢出保护
 
-**6. 存储与任务状态层**
+**6. 行情与事件研究层（P5）**
+- `src/market/provider.py` — `MarketDataProvider` Protocol + 4 种实现：`DummyMarketDataProvider`、`YFinanceMarketDataProvider`、`TushareMarketDataProvider`（A 股）、`PolygonMarketDataProvider`（美股）。工厂函数 `get_market_data_provider()`，A 股识别 `is_a_share_ticker()`
+- `src/market/cache.py` — `MarketDataCache` 文件级 JSON 缓存，SHA256 缓存键，可配 TTL
+- `src/market/event_study.py` — 事件研究：`calculate_abnormal_returns()`（CAPM，120 日 OLS 估计窗口）、`significance_test()`（t 检验 + 正态 CDF）、`run_multi_window_study()`（默认 [-1,1]、[-3,3]、[-5,5]）、`save_event_study_chart()` matplotlib 图表生成
+
+**7. 存储与任务状态层**
 - `src/storage/local_store.py` — 本地文件持久化（满足 `StorageBackend` Protocol）
 - `src/storage/task_store.py` — [P4] SQLite 任务状态，含 `current_node` 字段和节点级进度追踪（15%–100%）
 - `src/storage/vector_index.py` — [P3] 三种 RAG 模式：Token-overlap（`LocalVectorIndex`）、Embedding（`EmbeddingVectorIndex`，FAISS + sentence-transformers）、Hybrid（`HybridRetriever`，α=0.7 embedding + 0.3 BM25）
@@ -68,20 +73,33 @@
 - `src/storage/pg_store.py` — [P4] PostgreSQL 存储后端（SQLAlchemy ORM，双写 PG + 本地）
 - `src/storage/object_store.py` — [P4] S3/MinIO 对象存储（boto3，本地文件系统 fallback）
 
-**7. 异步任务层**
+**8. 异步任务层**
 - `src/tasks/__init__.py` — [P4] Celery 应用配置（Redis broker，可选启用）
 - `src/tasks/analysis.py` — [P4] `run_analysis` 任务（bind=True, max_retries=2, 指数退避）
 
-**8. 公共工具层**
+**9. 公共工具层**
 - `src/utils/logging.py` — 结构化日志（`ContextLoggerAdapter`）
 - `src/utils/ids.py` — ID 生成
 - `src/utils/time.py` — 时间工具
+- `src/utils/metrics.py` — [P6] 准确性度量：`statement_accuracy`、`balance_equation_pass_rate`、`source_ref_completeness`、`signal_category_recall`、`note_type_recall`、`compute_golden_metrics`
+- `src/utils/metrics_collector.py` — [P7] Prometheus 指标收集：`MetricsCollector`（counters: `pipeline_runs`/`llm_calls`，histograms: `pipeline_duration`/`node_duration`/`pdf_pages`，gauge: `active_analyses`）。无 `prometheus_client` 时 no-op fallback
+- `src/utils/tracing.py` — [P7] OpenTelemetry 链路追踪：`init_tracing()`、`get_tracer()`、`trace_span()` 上下文管理器。配置 `OTLP_ENDPOINT` 时启用 OTLP 导出
+
+**10. 评测层（P6）**
+- `tests/golden/` — Golden 测试集：5 个合成用例（`chinese_three_statements`、`english_full_statements`、`income_only`、`balance_equation_fail`、`audit_opinion_and_risks`），参数化管线测试（35 条）
+- `scripts/eval.py` — 评测 CLI runner（`make eval`）
+
+**11. DevOps & 基础设施（P7）**
+- `Dockerfile` — 多阶段构建（builder + slim runtime），非 root 用户运行
+- `docker-compose.yml` — 5 服务编排（api、worker、redis、postgres、minio）
+- `.github/workflows/ci.yml` — CI 管线：lint → type check → tests → Docker build
 
 ### 3.2 工作流（LangGraph）
 
 状态模型：`AgentState`（`src/agent/state.py`），核心字段包括：
 
 - `pages/chunks/tables/statements/notes/risk_signals/trader_report`
+- `event_study_results` — [P5] 事件研究结果
 - `validation_results/errors/debug`
 - `retry_count/needs_ocr`
 
@@ -98,7 +116,8 @@
 7. `extract_key_notes` — LLM 抽取关键注释
 8. `generate_risk_signals` — 规则 + LLM 生成风险信号
 9. `build_trader_report` — Trader 风格报告生成（RAG 上下文组装）
-10. `finalize` — 持久化全部结果
+10. `run_event_study` — [P5] 行情事件研究（CAPM 异常收益、多窗口显著性检验、图表生成）。行情数据不可用时 graceful skip
+11. `finalize` — 持久化全部结果
 
 节点超时：每个节点受 `NODE_TIMEOUT_S` 控制（默认 120s），LLM 调用受 `LLM_TIMEOUT_S` 控制（默认 60s）。
 
@@ -152,6 +171,9 @@ Embedding 模型自动选择：中文文档 → `BAAI/bge-base-zh-v1.5`，英文
 - 任务队列：`celery[redis]`
 - 数据库：`sqlalchemy`, `asyncpg`, `alembic`
 - 对象存储：`boto3`
+- 行情数据（P5）：`yfinance`, `tushare`, `polygon`（按需安装）
+- 可视化（P5）：`matplotlib`
+- 可观测性（P7）：`prometheus_client`, `opentelemetry-api`, `opentelemetry-sdk`, `opentelemetry-exporter-otlp`
 
 **开发 & 测试**
 - `pytest`, `pytest-asyncio`, `ruff`, `mypy`, `moto[s3]`
@@ -161,10 +183,11 @@ Embedding 模型自动选择：中文文档 → `BAAI/bge-base-zh-v1.5`，英文
 | 命令 | 用途 |
 |------|------|
 | `make dev` | 启动 FastAPI 开发服务（uvicorn --reload） |
-| `make test` | 运行全部 162 测试 |
+| `make test` | 运行全部 319 测试 |
 | `make fmt` | ruff format |
 | `make lint` | ruff check |
 | `make typecheck` | mypy 类型检查 |
+| `make eval` | [P6] 运行 Golden 评测集 |
 | `make worker` | 启动 Celery worker（需 Redis） |
 | `python -m src.cli analyze --pdf <file>` | CLI 分析 |
 
@@ -176,6 +199,7 @@ Embedding 模型自动选择：中文文档 → `BAAI/bge-base-zh-v1.5`，英文
 - 表格结构：`Table`, `TableCell`
 - 财务结构：`FinancialStatement`, `StatementLineItem`
 - 语义输出：`KeyNote`, `RiskSignal`, `TraderReport`
+- 事件研究：`EventStudyResult`（P5）
 - 证据对象：`SourceRef`
 
 可追溯性实现要点：
@@ -201,6 +225,8 @@ Embedding 模型自动选择：中文文档 → `BAAI/bge-base-zh-v1.5`，英文
 | GET | `/v1/documents/{doc_id}/statements` | 三大表 JSON | 是 | 60/min |
 | GET | `/v1/documents/{doc_id}/notes` | 关键注释 | 是 | 60/min |
 | GET | `/v1/documents/{doc_id}/risk-signals` | 风险信号 | 是 | 60/min |
+| GET | `/v1/documents/{doc_id}/event-study` | [P5] 事件研究结果 | 是 | 60/min |
+| GET | `/metrics` | [P7] Prometheus 指标 | 否 | — |
 
 安全特性：
 - **API Key 认证**：通过 `X-API-Key` 请求头验证（`API_KEYS` 环境变量配置，留空则关闭认证）
@@ -248,6 +274,8 @@ data/{doc_id}/
     statements.json
     notes.json
     risk_signals.json
+    event_study.json          # [P5]
+    event_study_chart.png     # [P5]
   report/
     trader_report.json
     trader_report.md
@@ -296,6 +324,9 @@ data/{doc_id}/
 9. 节点内使用 `ChatPromptTemplate + with_structured_output`
 10. 在关键节点使用 `RunnableParallel` 并行 LLM 分支
 11. Few-shot 提示词优化（含中文财报示例和反幻觉规则）
+12. [P5] 行情事件研究：CAPM 异常收益计算、多窗口显著性检验（[-1,1]、[-3,3]、[-5,5]）、图表生成
+13. [P5] A 股 / 美股行情接入：Tushare、YFinance、Polygon 提供商，带文件缓存（SHA256 键 + TTL）
+14. [P5] 行情数据不可用时管线 graceful skip，不影响核心分析
 
 ### 8.3 基础设施能力
 
@@ -306,13 +337,17 @@ data/{doc_id}/
 5. 可选 PostgreSQL 持久化存储
 6. 可选 S3/MinIO 对象存储
 7. 节点级进度追踪（15%–100%）
+8. [P7] Prometheus 指标端点（`/metrics`）：pipeline 运行计数、LLM 调用计数、节点耗时直方图、活跃分析 gauge
+9. [P7] OpenTelemetry 链路追踪（可选 OTLP 导出）
+10. [P7] Docker 多阶段构建 + docker-compose 5 服务编排（api、worker、redis、postgres、minio）
+11. [P7] GitHub Actions CI：lint → type check → tests → Docker build
 
 ### 8.4 测试现状
 
 当前测试：
 
 - 执行命令：`python -m pytest`（或 `make test`）
-- 结果：**162 passed, 1 skipped**
+- 结果：**319 passed**
 
 覆盖方向包括：
 
@@ -335,15 +370,20 @@ data/{doc_id}/
 | `test_vector_index.py` | Token-overlap 检索 |
 | `test_nodes_helpers.py` | 节点辅助函数 |
 | `test_normalizer_and_events.py` | 科目归一 + 事件研究 |
+| `tests/golden/test_golden.py` | [P6] Golden 测试集：5 合成用例 × 参数化管线测试（35 条） |
+| `test_market_cache.py` | [P5] 行情缓存 CRUD、TTL 过期、SHA256 键 |
+| `test_event_study.py` | [P5] CAPM 异常收益、显著性检验、多窗口研究 |
+| `test_metrics.py` | [P6] 准确性度量函数 |
+| `test_metrics_collector.py` | [P7] Prometheus 指标收集、no-op fallback |
+| `test_tracing.py` | [P7] OpenTelemetry 初始化、trace_span |
 
 ## 9. 已知限制与当前边界
 
-1. **行情事件研究**：模块已留接口（Dummy + YFinance stubs），尚未并入主分析流程，Tushare/Polygon 提供商待实现。
-2. **Golden 测试集**：有 Mock 端到端测试，但尚无真实 PDF 的参考结果对比。
-3. **表格解析**：使用 pdfplumber，对于无边框或复杂嵌套表格可能精度有限。
-4. **CI/CD**：尚未配置 GitHub Actions。
-5. **Docker**：Dockerfile 和 docker-compose 待实现。
-6. **Prometheus / OpenTelemetry**：可观测性指标待实现。
+1. **表格解析**：使用 pdfplumber，对于无边框或复杂嵌套表格可能精度有限。
+2. **行情数据覆盖**：Tushare 需要 Pro Token，Polygon 需付费 API Key；YFinance 无法覆盖所有 A 股。行情不可用时管线会 graceful skip 事件研究。
+3. **Golden 测试集**：当前为 5 个合成用例，尚无真实 PDF 的参考结果对比。
+4. **Prometheus `/metrics` 端点**：当前无认证、无速率限制，生产环境需额外保护。
+5. **OpenTelemetry**：OTLP 导出需配置外部 Collector（如 Jaeger / Grafana Tempo），未集成到 docker-compose。
 
 ## 10. 配置项
 
@@ -401,17 +441,30 @@ NODE_TIMEOUT_S=120               # 每个节点超时（秒）
 
 # ── 调试 ─────────────────────────────────────────────────────
 DEBUG=0                          # 1 = 保存中间产物
+
+# ── 行情数据（P5）───────────────────────────────────────────
+MARKET_DATA_PROVIDER=dummy       # dummy | yfinance | tushare | polygon
+TUSHARE_TOKEN=                   # Tushare Pro Token（A 股）
+POLYGON_API_KEY=                 # Polygon API Key（美股）
+MARKET_CACHE_TTL=86400           # 行情缓存 TTL（秒，默认 24h）
+MARKET_CACHE_DIR=data/.market_cache  # 缓存目录
+
+# ── 可观测性（P7）───────────────────────────────────────────
+OTLP_ENDPOINT=                   # OpenTelemetry Collector 地址（留空 = 不启用）
+OTEL_SERVICE_NAME=jetbot         # 服务名
 ```
 
 ## 11. 结论
 
-当前版本（P1–P4 完成）已具备生产级的财报 PDF 解析与分析能力：
+当前版本（P1–P7 完成）已具备生产级的财报 PDF 解析与分析能力：
 
 - **安全**：API Key 认证、速率限制、输入校验、节点超时
 - **OCR**：PaddleOCR + Tesseract 双引擎，自动语言检测
 - **LLM**：OpenAI + Anthropic 双供应商，多模型任务路由，token 溢出保护
 - **RAG**：Token-overlap / Embedding (FAISS) / Hybrid 三种检索模式
+- **行情**：Tushare / YFinance / Polygon 多行情源，CAPM 事件研究，文件缓存
+- **评测**：Golden 测试集（5 合成用例）、准确性度量（statement_accuracy / balance_equation / source_ref / signal_recall）
+- **可观测**：Prometheus 指标、OpenTelemetry 链路追踪
 - **扩展**：Celery 异步队列、PostgreSQL 持久化、S3 对象存储
-- **质量**：162 测试覆盖核心功能，Few-shot 提示词优化
-
-后续升级方向（P5–P7）：行情数据集成、Golden 评测集、Prometheus 可观测性、Docker 容器化、CI/CD 管线。
+- **DevOps**：Docker 多阶段构建、docker-compose 编排、GitHub Actions CI
+- **质量**：319 测试覆盖核心功能，Few-shot 提示词优化

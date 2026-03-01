@@ -23,7 +23,7 @@ try:
 
     ANTHROPIC_AVAILABLE = True
 except Exception:  # pragma: no cover
-    Anthropic = None  # type: ignore[assignment]
+    Anthropic = None  # type: ignore[assignment,misc]
     ANTHROPIC_AVAILABLE = False
 
 
@@ -49,7 +49,7 @@ class AnthropicLLMClient:
                 system=system,
                 messages=[{"role": "user", "content": user}],
             )
-            return response.content[0].text
+            return response.content[0].text  # type: ignore[union-attr]
         except Exception as exc:
             _logger.warning("anthropic_chat_error", extra={"error": str(exc)})
             return "{}"

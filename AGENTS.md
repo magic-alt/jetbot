@@ -21,6 +21,7 @@ This repository implements a financial-report PDF parsing and analysis agent. It
 - `uvicorn src.api.main:app --reload`: alternative dev server.
 - `python -m src.cli analyze --pdf path/to.pdf --out data/`: run the CLI pipeline.
 - `python -m pytest`: run unit tests.
+- `bash scripts/local_ci.sh`: run the full local CI pipeline (lint + type check + tests).
 
 ## Coding Style & Naming Conventions
 
@@ -34,10 +35,13 @@ This repository implements a financial-report PDF parsing and analysis agent. It
 - Use pytest; target validators, schema validation, and signal rules.
 - Prefer deterministic tests with mock LLM/PDF extractors.
 - Name tests `test_<area>_<behavior>.py` and keep fixtures under `tests/fixtures/`.
+- `tests/conftest.py` forces `LLM_DEFAULT_MODEL=mock:mock` for all tests to prevent real API calls.
+- All tests have a 60-second timeout (`pytest-timeout`) configured in `pyproject.toml`.
 
 ## Commit & Pull Request Guidelines
 
-- No established commit style found in this repo; use concise, imperative messages (e.g., “add validator for balance check”).
+- **Every commit must pass local CI/CD before being pushed.** Run `bash scripts/local_ci.sh` or rely on the git pre-commit hook (`.git/hooks/pre-commit`) which runs lint, type check, and tests automatically. Do not push commits that fail these checks.
+- Use concise, imperative commit messages (e.g., "add validator for balance check").
 - PRs should include: purpose, scope, test commands run, and sample outputs (report JSON/MD) if behavior changes.
 
 ## Security & Configuration Tips

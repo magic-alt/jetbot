@@ -52,7 +52,7 @@ def get_storage_backend(base_dir: str | None = None) -> StorageBackend:
     - ``postgres``: :class:`~src.storage.pg_store.PgStore`
     """
     backend = os.getenv("STORAGE_BACKEND", "local").lower()
-    data_dir = base_dir or os.getenv("DATA_DIR", "data")
+    data_dir = base_dir or os.getenv("DATA_DIR") or "data"
 
     if backend == "postgres":
         from src.storage.pg_store import PgStore

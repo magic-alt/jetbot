@@ -18,7 +18,6 @@ from src.pdf.extractor import PDFExtractor
 from src.pdf.tables import extract_tables as extract_tables_from_pdf
 from src.schemas.models import (
     Chunk,
-    EventStudyResult,
     FinancialStatement,
     KeyNote,
     Page,
@@ -29,7 +28,7 @@ from src.schemas.models import (
     TraderReport,
 )
 from src.storage.local_store import LocalStore
-from src.storage.vector_index import LocalVectorIndex, build_rag_index
+from src.storage.vector_index import build_rag_index
 from src.utils.ids import new_doc_id
 from src.utils.logging import get_logger, log_node
 from src.utils.time import monotonic_ms
@@ -212,7 +211,7 @@ def detect_sections_and_chunk(state: AgentState) -> AgentState:
 def extract_financial_statements(state: AgentState) -> AgentState:
     start_ms = monotonic_ms()
     statements: dict[str, FinancialStatement] = {}
-    tables_by_type = {"balance": [], "income": [], "cashflow": []}
+    tables_by_type: dict[str, list[Table]] = {"balance": [], "income": [], "cashflow": []}
 
     # Build retry context from previous validation failures
     retry_context = ""
@@ -664,7 +663,7 @@ def _tables_to_statement(kind: str, tables: list[Table]) -> FinancialStatement:
             if name_norm in {"total_assets", "total_liabilities", "total_equity", "net_income", "operating_cf", "revenue"} and value_current is not None:
                 totals[name_norm] = value_current
     return FinancialStatement(
-        statement_type=kind,
+        statement_type=kind,  # type: ignore[arg-type]
         period_end=None,
         period_start=None,
         line_items=line_items,
@@ -771,7 +770,7 @@ def _llm_statement(state: AgentState, kind: str, *, retry_context: str = "") -> 
         request,
         node_name="extract_financial_statements",
         fallback=FinancialStatement(
-            statement_type=kind,
+            statement_type=kind,  # type: ignore[arg-type]
             period_end=None,
             period_start=None,
             line_items=[],
@@ -980,7 +979,7 @@ def _merge_signals(signals: list[RiskSignal]) -> list[RiskSignal]:
             signal_id=existing.signal_id,
             category=existing.category,
             title=existing.title,
-            severity=_pick_more_severe(existing.severity, signal.severity),
+            severity=_pick_more_severe(existing.severity, signal.severity),  # type: ignore[arg-type]
             description=signal.description if len(signal.description) > len(existing.description) else existing.description,
             metrics={**existing.metrics, **signal.metrics},
             evidence=evidence,

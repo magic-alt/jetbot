@@ -44,7 +44,7 @@ class ObjectStore:
         local_dir: str | None = None,
     ) -> None:
         self._bucket = bucket or os.getenv("S3_BUCKET", "jetbot-pdfs")
-        self._local_dir = Path(local_dir or os.getenv("DATA_DIR", "data")).resolve()
+        self._local_dir = Path(local_dir or os.getenv("DATA_DIR") or "data").resolve()
         self._local_dir.mkdir(parents=True, exist_ok=True)
         self._client: Any = None
 

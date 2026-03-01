@@ -6,10 +6,11 @@ from typing import Any
 from src.utils.time import monotonic_ms
 
 
-class ContextLoggerAdapter(logging.LoggerAdapter):
-    def process(self, msg: str, kwargs: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-        extra = {"doc_id": "-", "node_name": "-", "elapsed_ms": 0}
-        extra.update(self.extra)
+class ContextLoggerAdapter(logging.LoggerAdapter):  # type: ignore[type-arg]
+    def process(self, msg: str, kwargs: Any) -> tuple[str, Any]:
+        extra: dict[str, Any] = {"doc_id": "-", "node_name": "-", "elapsed_ms": 0}
+        if self.extra:
+            extra.update(self.extra)
         extra.update(kwargs.get("extra", {}))
         kwargs["extra"] = extra
         return msg, kwargs

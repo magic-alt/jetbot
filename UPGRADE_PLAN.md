@@ -2,7 +2,7 @@
 
 **Document Version**: 1.4
 **Base Commit**: `0a338c0` (全量代码审查优化修复)
-**Current State**: P1–P4 Complete — 162 tests passing, 9-node LangGraph pipeline, FastAPI + CLI, Mock/OpenAI/Anthropic LLM, Embedding RAG, Token Manager, Celery Task Queue, Postgres/S3 Storage
+**Current State**: P1–P7 Complete — 319 tests passing, 10-node LangGraph pipeline, FastAPI + CLI, Mock/OpenAI/Anthropic LLM, Embedding RAG, Token Manager, Celery Task Queue, Postgres/S3 Storage, Market Data Event Study, Golden Test Suite, Prometheus Metrics, Docker, CI/CD
 
 ---
 
@@ -418,30 +418,30 @@ all = ["jetbot[ocr,tables,embeddings,celery,postgres,s3,market,monitoring]"]
 - [x] `STORAGE_BACKEND=local` still works (no regression)
 - [x] All tests pass (target: 110+ total tests) — **162 tests passing**
 
-### Phase 5: Market Data & Event Study
-- [ ] Tushare provider returns A-share prices when configured
-- [ ] Event study calculates market-adjusted abnormal returns
-- [ ] Statistical significance test produces p-values
-- [ ] Event study chart saved as PNG in report directory
-- [ ] Pipeline includes event study when market data is available
-- [ ] Pipeline completes without error when market data is unavailable
-- [ ] All tests pass (target: 120+ total tests)
+### Phase 5: Market Data & Event Study ✅
+- [x] Tushare provider returns A-share prices when configured
+- [x] Event study calculates market-adjusted abnormal returns
+- [x] Statistical significance test produces p-values
+- [x] Event study chart saved as PNG in report directory
+- [x] Pipeline includes event study when market data is available
+- [x] Pipeline completes without error when market data is unavailable
+- [x] All tests pass (target: 120+ total tests)
 
-### Phase 6: Evaluation & Quality Assurance
-- [ ] Golden test set has 5+ representative cases
-- [ ] `make eval` runs all golden tests and reports accuracy metrics
-- [ ] Regression detection catches accuracy drops
-- [ ] Source reference completeness > 95% on golden set
-- [ ] Balance equation pass rate > 90% on golden set
-- [ ] All tests pass (target: 130+ total tests)
+### Phase 6: Evaluation & Quality Assurance ✅
+- [x] Golden test set has 5+ representative cases
+- [x] `make eval` runs all golden tests and reports accuracy metrics
+- [x] Regression detection catches accuracy drops
+- [x] Source reference completeness > 95% on golden set
+- [x] Balance equation pass rate > 90% on golden set
+- [x] All tests pass (target: 130+ total tests)
 
-### Phase 7: Observability & DevOps
-- [ ] `/metrics` endpoint returns Prometheus-formatted metrics
-- [ ] Docker image builds and runs successfully
-- [ ] `docker-compose up` starts full stack (API + worker + Redis + Postgres)
-- [ ] CI pipeline runs lint + tests on every push
-- [ ] Release pipeline builds and tags Docker image
-- [ ] All tests pass (target: 140+ total tests)
+### Phase 7: Observability & DevOps ✅
+- [x] `/metrics` endpoint returns Prometheus-formatted metrics
+- [x] Docker image builds and runs successfully
+- [x] `docker-compose up` starts full stack (API + worker + Redis + Postgres)
+- [x] CI pipeline runs lint + tests on every push
+- [x] Release pipeline builds and tags Docker image
+- [x] All tests pass (target: 140+ total tests) — **319 tests passing**
 
 ---
 

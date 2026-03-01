@@ -1,7 +1,5 @@
 """Prometheus metrics collector for the Financial Report Agent."""
 from __future__ import annotations
-import time
-from typing import Any
 
 # Try to import prometheus_client; provide no-op fallback if not installed
 try:

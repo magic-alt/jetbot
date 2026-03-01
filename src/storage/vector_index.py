@@ -18,7 +18,7 @@ try:
     from langchain_core.documents import Document
 except Exception:  # pragma: no cover - optional dependency
     @dataclass(slots=True)
-    class Document:
+    class Document:  # type: ignore[no-redef]
         page_content: str
         metadata: dict[str, Any]
 
@@ -27,7 +27,7 @@ try:
 
     TEXT_SPLITTER_AVAILABLE = True
 except Exception:  # pragma: no cover - optional dependency
-    RecursiveCharacterTextSplitter = None  # type: ignore[assignment]
+    RecursiveCharacterTextSplitter = None  # type: ignore[assignment,misc]
     TEXT_SPLITTER_AVAILABLE = False
 
 # Optional embedding / FAISS imports
