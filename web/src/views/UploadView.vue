@@ -2,9 +2,9 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { UploadFilled } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { docsApi } from '@/api/docs'
 import type { UploadRequestOptions, UploadUserFile } from 'element-plus'
-import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const fileList = ref<UploadUserFile[]>([])
@@ -16,15 +16,16 @@ const lastDocId = ref<string | null>(null)
 async function uploadHandler(opts: UploadRequestOptions) {
   uploading.value = true
   try {
-    const data = await docsApi.upload(opts.file as File, {
+    const created = await docsApi.upload(opts.file as File, {
       language: language.value === 'auto' ? undefined : language.value,
       ocr: useOcr.value || undefined,
     })
-    lastDocId.value = data.doc_id
-    ElMessage.success(`已创建任务: ${data.doc_id}`)
-    opts.onSuccess?.(data)
+    await docsApi.analyze(created.doc_id)
+    lastDocId.value = created.doc_id
+    ElMessage.success(`已创建并启动分析任务: ${created.doc_id}`)
+    opts.onSuccess?.(created)
     // Jump to detail page so the user can watch progress live.
-    setTimeout(() => router.push(`/documents/${data.doc_id}`), 400)
+    setTimeout(() => router.push(`/documents/${created.doc_id}`), 400)
   } catch (e: any) {
     ElMessage.error(e.message || '上传失败')
     opts.onError?.(e as any)

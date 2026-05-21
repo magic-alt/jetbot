@@ -55,7 +55,7 @@ async function loadAll() {
 }
 
 const status = computed(() => detail.value?.task?.status)
-const isFinal = computed(() => status.value === 'completed' || status.value === 'failed')
+const isFinal = computed(() => ['completed', 'succeeded', 'failed'].includes(status.value || ''))
 
 const polling = usePolling(async () => {
   await loadDetail()
@@ -110,16 +110,23 @@ function jumpToPage(page: number) {
           </div>
         </div>
         <div class="header-right">
-          <el-tag v-if="status" :type="status === 'completed' ? 'success' : status === 'failed' ? 'danger' : 'warning'">
+          <el-tag
+            v-if="status"
+            :type="status === 'completed' || status === 'succeeded' ? 'success' : status === 'failed' ? 'danger' : 'warning'"
+          >
             {{ status }}
           </el-tag>
           <el-progress
-            v-if="detail?.task?.progress != null && status !== 'completed'"
+            v-if="detail?.task?.progress != null && status !== 'completed' && status !== 'succeeded'"
             :percentage="Math.round(detail.task.progress)"
             :stroke-width="8"
             style="width: 200px; margin-left: 12px"
           />
-          <span v-if="detail?.task?.current_node && status !== 'completed'" class="muted" style="margin-left:8px">
+          <span
+            v-if="detail?.task?.current_node && status !== 'completed' && status !== 'succeeded'"
+            class="muted"
+            style="margin-left:8px"
+          >
             · {{ detail.task.current_node }}
           </span>
         </div>
