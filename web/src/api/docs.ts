@@ -26,7 +26,7 @@ function normalizeMetricName(name: string): string {
   return name.replace(/_/g, ' ')
 }
 
-function normalizeStatements(raw: any): FinancialStatements {
+export function normalizeStatements(raw: any): FinancialStatements {
   if (!raw || typeof raw !== 'object') return {}
 
   const groupMap: Record<string, keyof FinancialStatements> = {
@@ -134,6 +134,9 @@ export const docsApi = {
   /** Returns { meta, task }. */
   detail(docId: string) {
     return unwrap<DocumentListItem>(http.get(`/v1/documents/${docId}`))
+  },
+  delete(docId: string) {
+    return unwrap<{ doc_id: string; deleted: boolean }>(http.delete(`/v1/documents/${docId}`))
   },
   statements(docId: string) {
     return unwrap<any>(http.get(`/v1/documents/${docId}/statements`)).then(normalizeStatements)

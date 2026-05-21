@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import path from 'node:path'
 import Components from 'unplugin-vue-components/vite'
@@ -7,13 +7,13 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 const apiTarget = 'http://127.0.0.1:8000'
 
 // https://vitejs.dev/config/
-export default defineConfig(({ command }) => ({
+export default defineConfig(({ command, mode }) => ({
   base: command === 'build' ? '/ui/' : '/',
   plugins: [
     vue(),
     Components({
       dts: false,
-      resolvers: [ElementPlusResolver({ importStyle: 'css' })],
+      resolvers: [ElementPlusResolver({ importStyle: mode === 'test' ? false : 'css' })],
     }),
   ],
   resolve: {
@@ -46,5 +46,8 @@ export default defineConfig(({ command }) => ({
         },
       },
     },
+  },
+  test: {
+    include: ['src/**/*.spec.ts'],
   },
 }))

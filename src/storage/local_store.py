@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +69,28 @@ class LocalStore:
             return None
         return DocumentMeta.model_validate_json(meta_path.read_text(encoding="utf-8"))
 
+    def list_metas(self) -> list[DocumentMeta]:
+        if not self.base_dir.exists():
+            return []
+        metas: list[DocumentMeta] = []
+        for entry in self.base_dir.iterdir():
+            if not entry.is_dir():
+                continue
+            try:
+                meta = self.load_meta(entry.name)
+            except ValueError:
+                continue
+            if meta is not None:
+                metas.append(meta)
+        return metas
+
+    def delete_document(self, doc_id: str) -> bool:
+        root = self.doc_dir(doc_id)
+        if not root.exists():
+            return False
+        shutil.rmtree(root)
+        return True
+
     def save_json(self, doc_id: str, relative_path: str, data: Any) -> Path:
         paths = self.ensure_layout(doc_id)
         full_path = paths["root"] / relative_path
@@ -88,3 +111,10 @@ class LocalStore:
         full_path.parent.mkdir(parents=True, exist_ok=True)
         full_path.write_text(text, encoding="utf-8")
         return full_path
+
+    def load_markdown(self, doc_id: str, relative_path: str) -> str | None:
+        self._validate_doc_id(doc_id)
+        full_path = self._safe_path(self.base_dir / doc_id / relative_path)
+        if not full_path.exists():
+            return None
+        return full_path.read_text(encoding="utf-8")
