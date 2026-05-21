@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.tasks import is_celery_backend, CELERY_AVAILABLE
+from src.tasks import app, is_celery_backend, CELERY_AVAILABLE
 
 
 class TestIsCeleryBackend:
@@ -27,6 +27,12 @@ class TestIsCeleryBackend:
 
 
 class TestAnalysisTaskStub:
+    def test_run_analysis_registered_when_celery_available(self):
+        """Workers started with ``celery -A src.tasks`` must know this task."""
+        if not CELERY_AVAILABLE or app is None:
+            pytest.skip("Celery is not installed; registration test not applicable")
+        assert "run_analysis" in app.tasks
+
     def test_run_analysis_import_does_not_crash(self):
         """Importing analysis module should not fail even without Celery."""
         from src.tasks.analysis import run_analysis

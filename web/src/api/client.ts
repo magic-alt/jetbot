@@ -12,13 +12,9 @@ function resolveApiBaseUrl(): string {
     return configuredBase.replace(/\/$/, '')
   }
 
-  if (typeof window === 'undefined') {
-    return ''
-  }
-
-  const { hostname, protocol, port } = window.location
-  const isLocalDevServer = (hostname === '127.0.0.1' || hostname === 'localhost') && port !== '8000'
-  return isLocalDevServer ? `${protocol}//127.0.0.1:8000` : ''
+  // Default to same-origin requests so the Docker-served SPA at /ui and the
+  // Vite dev proxy can both reach /v1 without hard-coding a host port.
+  return ''
 }
 
 const baseURL = resolveApiBaseUrl()

@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { docsApi } from '@/api/docs'
 import type { UploadRequestOptions, UploadUserFile } from 'element-plus'
 
-const router = useRouter()
 const fileList = ref<UploadUserFile[]>([])
 const language = ref<'auto' | 'zh' | 'en'>('auto')
 const useOcr = ref(false)
@@ -24,8 +22,6 @@ async function uploadHandler(opts: UploadRequestOptions) {
     lastDocId.value = created.doc_id
     ElMessage.success(`已创建并启动分析任务: ${created.doc_id}`)
     opts.onSuccess?.(created)
-    // Jump to detail page so the user can watch progress live.
-    setTimeout(() => router.push(`/documents/${created.doc_id}`), 400)
   } catch (e: any) {
     ElMessage.error(e.message || '上传失败')
     opts.onError?.(e as any)
@@ -91,7 +87,7 @@ function beforeUpload(file: File): boolean {
         type="success"
         show-icon
         :title="`任务已创建: ${lastDocId}`"
-        :description="`分析约需 1-3 分钟,稍后可在文档详情页查看进度。`"
+        :description="`分析约需 1-3 分钟,稍后可在文档列表查看进度。`"
         style="margin-top:12px"
       />
     </el-card>
