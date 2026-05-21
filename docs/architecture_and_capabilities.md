@@ -43,10 +43,12 @@
 - `src/agent/state.py` — `AgentState` 定义
 
 **3. PDF 处理层**
-- `src/pdf/extractor.py` — PyMuPDF 文本抽取 + PDF 格式校验（`%PDF-` 头部检测）
+- `src/pdf/engine.py` — PDF 引擎抽象，默认 PyMuPDF，可通过 `PDF_ENGINE=pdfium` 切换到 pypdfium2/PDFium
+- `src/pdf/extractor.py` — 基于配置引擎的文本抽取 + PDF 格式校验（`%PDF-` 头部检测）
 - `src/pdf/tables.py` — pdfplumber 表格抽取
 - `src/pdf/ocr.py` — [P2] PaddleOCR + Tesseract 双引擎 OCR，Protocol 抽象，自动语言检测
-- `src/pdf/render.py` — [P2] PyMuPDF 页面渲染，可配 DPI（默认 200 OCR / 72 预览）
+- `src/pdf/render.py` — [P2] 基于配置引擎的页面渲染，可配 DPI（默认 200 OCR / 72 预览）
+- `src/pdf/operations.py` — [P8] PDFium 页面级操作：抽取、删除、重排、旋转、合并并输出衍生 PDF
 
 **4. 财务语义与规则层**
 - `src/finance/normalizer.py` — 科目归一（中英文）
@@ -165,6 +167,7 @@ Embedding 模型自动选择：中文文档 → `BAAI/bge-base-zh-v1.5`，英文
 - 日志：`logging`（自定义 `ContextLoggerAdapter`）
 
 **可选依赖**
+- PDFium：`pypdfium2`
 - OCR：`paddleocr`, `pytesseract`
 - Embedding RAG：`faiss-cpu`, `sentence-transformers`
 - Anthropic：`anthropic`
@@ -226,6 +229,8 @@ Embedding 模型自动选择：中文文档 → `BAAI/bge-base-zh-v1.5`，英文
 | GET | `/v1/documents/{doc_id}/notes` | 关键注释 | 是 | 60/min |
 | GET | `/v1/documents/{doc_id}/risk-signals` | 风险信号 | 是 | 60/min |
 | GET | `/v1/documents/{doc_id}/event-study` | [P5] 事件研究结果 | 是 | 60/min |
+| POST | `/v1/documents/{doc_id}/pdf/operations` | [P8] 创建衍生 PDF（extract/delete/reorder/rotate） | 是 | 60/min |
+| GET | `/v1/documents/{doc_id}/pdf/derived/{revision_id}` | [P8] 下载/预览衍生 PDF | 是 | 60/min |
 | GET | `/metrics` | [P7] Prometheus 指标 | 否 | — |
 
 安全特性：
@@ -268,6 +273,9 @@ Embedding 模型自动选择：中文文档 → `BAAI/bge-base-zh-v1.5`，英文
 data/{doc_id}/
   raw.pdf
   meta.json
+  derived/
+    {revision_id}.pdf
+    {revision_id}.json
   extracted/
     pages.json
     tables.json
@@ -415,6 +423,9 @@ LANGSMITH_PROJECT=financial-report-agent
 DATA_DIR=data                    # 本地输出目录
 STORAGE_BACKEND=local            # local | postgres
 DATABASE_URL=                    # PostgreSQL 连接 URL
+
+# ── PDF 引擎 ─────────────────────────────────────────────────
+PDF_ENGINE=pymupdf               # pymupdf | pdfium
 
 # ── S3/MinIO 对象存储（P4）───────────────────────────────────
 S3_ENDPOINT=

@@ -162,6 +162,58 @@ def test_pdf_missing_returns_404(client: TestClient, tmp_path: Path) -> None:
     assert r.status_code == 404
 
 
+def test_pdf_operation_creates_derived_pdf(client: TestClient, tmp_path: Path) -> None:
+    pytest.importorskip("pypdfium2")
+    import fitz
+
+    base = tmp_path / "data"
+    _make_doc(base, "abc123")
+    raw_pdf = base / "abc123" / "raw.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=300, height=240)
+    page.insert_text((36, 72), "page one", fontsize=12)
+    doc.new_page(width=300, height=240)
+    doc.save(str(raw_pdf))
+    doc.close()
+
+    r = client.post(
+        "/v1/documents/abc123/pdf/operations",
+        json={"operation": "extract", "pages": [1]},
+    )
+
+    assert r.status_code == 200
+    data = r.json()["data"]
+    assert data["operation"] == "extract"
+    assert data["page_count"] == 1
+    assert (base / "abc123" / data["output_pdf"]).exists()
+    assert (base / "abc123" / "derived" / f"{data['revision_id']}.json").exists()
+
+    download = client.get(f"/v1/documents/abc123/pdf/derived/{data['revision_id']}")
+    assert download.status_code == 200
+    assert download.headers["content-type"] == "application/pdf"
+    assert download.content.startswith(b"%PDF")
+
+
+def test_pdf_operation_invalid_page_returns_400(client: TestClient, tmp_path: Path) -> None:
+    pytest.importorskip("pypdfium2")
+    import fitz
+
+    base = tmp_path / "data"
+    _make_doc(base, "abc123")
+    raw_pdf = base / "abc123" / "raw.pdf"
+    doc = fitz.open()
+    doc.new_page(width=300, height=240)
+    doc.save(str(raw_pdf))
+    doc.close()
+
+    r = client.post(
+        "/v1/documents/abc123/pdf/operations",
+        json={"operation": "extract", "pages": [99]},
+    )
+
+    assert r.status_code == 400
+
+
 def test_other_routes_still_deny_iframe(client: TestClient) -> None:
     """SAMEORIGIN on /pdf must not leak into the default DENY policy."""
     r = client.get("/health")

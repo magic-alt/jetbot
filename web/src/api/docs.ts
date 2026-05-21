@@ -5,6 +5,7 @@ import type {
   FinancialStatements,
   KeyNote,
   MetricItem,
+  PdfOperationResult,
   RiskSignal,
   SourceRef,
 } from './types'
@@ -164,6 +165,17 @@ export const docsApi = {
   pdfUrl(docId: string) {
     // Keep the raw route available for explicit downloads or direct linking.
     return buildApiUrl(`/v1/documents/${docId}/pdf`)
+  },
+  pdfOperation(
+    docId: string,
+    payload: { operation: 'extract' | 'delete' | 'reorder' | 'rotate'; pages?: number[] | null; degrees?: number },
+  ) {
+    return unwrap<PdfOperationResult>(http.post(`/v1/documents/${docId}/pdf/operations`, payload))
+  },
+  derivedPdfBlob(docId: string, revisionId: string) {
+    return http
+      .get(`/v1/documents/${docId}/pdf/derived/${revisionId}`, { responseType: 'blob' })
+      .then((r) => r.data as Blob)
   },
   upload(file: File, opts: { language?: string; ocr?: boolean } = {}) {
     const form = new FormData()
