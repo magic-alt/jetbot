@@ -12,6 +12,7 @@ Start the worker::
 from __future__ import annotations
 
 import os
+from importlib import import_module
 
 # Celery is an optional dependency; import guards allow the module to be
 # loaded even when celery is not installed (e.g. in tests or when using
@@ -34,6 +35,7 @@ if CELERY_AVAILABLE and Celery is not None:
         "jetbot",
         broker=_BROKER_URL,
         backend=_RESULT_BACKEND,
+        include=["src.tasks.analysis"],
     )
     app.conf.update(
         task_serializer="json",
@@ -45,6 +47,7 @@ if CELERY_AVAILABLE and Celery is not None:
         task_acks_late=True,
         worker_prefetch_multiplier=1,
     )
+    import_module("src.tasks.analysis")
 
 
 def is_celery_backend() -> bool:
