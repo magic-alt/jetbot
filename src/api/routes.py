@@ -99,8 +99,8 @@ async def create_document(
     language: str | None = Form(default=None),
 ):
     doc_id = new_doc_id()
-    doc_dir = store.doc_dir(doc_id)
-    raw_path = doc_dir / "raw.pdf"
+    paths = store.ensure_layout(doc_id)
+    raw_path = paths["root"] / "raw.pdf"
     safe_filename = _sanitize_filename(file.filename or "uploaded.pdf")
 
     total_size = 0
@@ -134,7 +134,7 @@ async def create_document(
     )
     store.save_meta(doc_id, meta)
     task_store.create(doc_id)
-    return _ok({"doc_id": doc_id})
+    return _ok({"doc_id": doc_id, "status": "queued"})
 
 
 @router.post("/documents/{doc_id}/analyze")

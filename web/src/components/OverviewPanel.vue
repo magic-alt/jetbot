@@ -15,7 +15,7 @@ const emit = defineEmits<{ (e: 'jumpPage', page: number): void }>()
 function findMetric(name: RegExp): MetricItem | null {
   if (!props.statements) return null
   for (const list of Object.values(props.statements)) {
-    if (!list) continue
+    if (!Array.isArray(list)) continue
     for (const m of list) if (name.test(m.name)) return m
   }
   return null

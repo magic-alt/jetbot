@@ -89,6 +89,24 @@ def test_list_pagination(client: TestClient, tmp_path: Path) -> None:
     assert len(data["items"]) == 2
 
 
+def test_upload_endpoint_creates_doc_layout(client: TestClient, tmp_path: Path) -> None:
+    r = client.post(
+        "/v1/documents",
+        files={"file": ("demo.pdf", b"%PDF-1.4\n%fake upload\n%%EOF\n", "application/pdf")},
+        data={"language": "en"},
+    )
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True
+    assert body["data"]["status"] == "queued"
+
+    doc_id = body["data"]["doc_id"]
+    doc_dir = tmp_path / "data" / doc_id
+    assert (doc_dir / "raw.pdf").exists()
+    assert (doc_dir / "meta.json").exists()
+
+
 def test_tables_endpoint(client: TestClient, tmp_path: Path) -> None:
     _make_doc(tmp_path / "data", "abc123")
     r = client.get("/v1/documents/abc123/tables")
