@@ -37,7 +37,8 @@ Settings → Branches → Branch protection rules):
 - Require approvals: **1** (at least)
 - Dismiss stale pull request approvals when new commits are pushed
 - Require status checks to pass before merging:
-  - `lint-and-test`
+   - `lint-and-test (3.12)`
+   - `Web UI build`
 - Require branches to be up to date before merging
 - Require linear history
 - Do not allow bypassing the above settings
@@ -79,7 +80,9 @@ make web-lint         # eslint + vue-tsc type check
 make web-build        # production build into web/dist/
 ```
 
-The `web-build` GitHub Actions job runs these in CI for every PR.
+The full local CI script (`bash scripts/local_ci.sh`) now runs the same Python
+and web checks as GitHub CI. The `web-build` GitHub Actions job runs the web
+checks for every PR.
 
 ## Reporting issues
 

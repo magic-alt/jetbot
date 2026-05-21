@@ -16,7 +16,8 @@ Repository → **Settings** → **Branches** → **Branch protection rules** →
 - [x] Require status checks to pass before merging
   - [x] Require branches to be up to date before merging
   - Required checks:
-    - `lint-and-test`
+    - `lint-and-test (3.12)`
+    - `Web UI build`
 - [x] Require conversation resolution before merging
 - [x] Require linear history
 - [x] Do not allow bypassing the above settings
@@ -39,7 +40,8 @@ Also under **Settings → General → Pull Requests**:
 gh api -X PUT \
   repos/magic-alt/jetbot/branches/main/protection \
   -F required_status_checks.strict=true \
-  -F 'required_status_checks.contexts[]=lint-and-test' \
+  -F 'required_status_checks.contexts[]=lint-and-test (3.12)' \
+  -F 'required_status_checks.contexts[]=Web UI build' \
   -F enforce_admins=true \
   -F required_pull_request_reviews.required_approving_review_count=1 \
   -F required_pull_request_reviews.dismiss_stale_reviews=true \
@@ -65,3 +67,6 @@ chmod +x .git/hooks/pre-commit
 ```
 
 (See `scripts/git-hooks/pre-commit`.)
+
+The local helper script `scripts/local_ci.sh` should stay in lockstep with these
+required GitHub checks, including the web lint/type/build steps.

@@ -243,6 +243,9 @@ git push -u origin HEAD
 gh pr create --base main --fill
 ```
 
+`bash scripts/local_ci.sh` now covers the same core checks as GitHub CI:
+Python lint/type/test plus web lint/type/build.
+
 ## License
 
 [MIT](LICENSE).
