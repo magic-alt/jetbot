@@ -29,7 +29,8 @@ docker-build:
 	docker build -t jetbot:latest .
 
 docker-up:
-	docker compose up -d
+	docker compose up -d --build
+	python scripts/open_ui_after_docker.py
 
 docker-down:
 	docker compose down

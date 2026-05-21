@@ -1,4 +1,14 @@
-# ── Builder stage ──────────────────────────────────────────────────────────
+# ── Web builder stage ──────────────────────────────────────────────────────
+FROM node:20-alpine AS web-builder
+
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
+
+# ── Python builder stage ───────────────────────────────────────────────────
 FROM python:3.12-slim AS builder
 
 # Build-time arg to opt into extra dependency groups, e.g.
@@ -23,6 +33,7 @@ FROM python:3.12-slim AS runtime
 WORKDIR /app
 COPY --from=builder /install /usr/local
 COPY --from=builder /app .
+COPY --from=web-builder /web/dist ./web/dist
 
 # Create non-root user
 RUN groupadd -r agent && useradd -r -g agent agent && \
