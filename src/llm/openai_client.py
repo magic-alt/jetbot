@@ -32,18 +32,24 @@ except Exception:  # pragma: no cover - optional dependency
 
 
 class OpenAILLMClient:
-    def __init__(self, api_key: str, model: str) -> None:
+    def __init__(self, api_key: str, model: str, *, base_url: str | None = None) -> None:
         _timeout = int(os.getenv("LLM_TIMEOUT_S", "60"))
-        self._client = OpenAI(api_key=api_key, timeout=float(_timeout))
+        client_kwargs: dict[str, Any] = {"api_key": api_key, "timeout": float(_timeout)}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        self._client = OpenAI(**client_kwargs)
         self._model = model
         self._chat_model = None
         if LANGCHAIN_AVAILABLE and ChatOpenAI is not None:
-            self._chat_model = ChatOpenAI(
-                api_key=api_key,  # type: ignore[arg-type]
-                model=model,
-                temperature=0,
-                timeout=float(_timeout),
-            )
+            chat_kwargs: dict[str, Any] = {
+                "api_key": api_key,
+                "model": model,
+                "temperature": 0,
+                "timeout": float(_timeout),
+            }
+            if base_url:
+                chat_kwargs["base_url"] = base_url
+            self._chat_model = ChatOpenAI(**chat_kwargs)
 
     async def chat(self, system: str, user: str, json_schema: dict | None = None) -> str:
         system, user = check_and_truncate(system, user, model=self._model)
