@@ -67,6 +67,7 @@ celery = [
 # PostgreSQL storage (P4): pip install financial-report-agent[postgres]
 postgres = [
   "sqlalchemy[asyncio]>=2.0",
+  "psycopg[binary]>=3.1",
   "asyncpg>=0.29",
   "alembic>=1.13",
 ]

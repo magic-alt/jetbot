@@ -5,7 +5,13 @@ from __future__ import annotations
 from src.schemas.models import DocumentMeta
 from src.storage.backend import StorageBackend, get_storage_backend
 from src.storage.local_store import LocalStore
-from src.storage.pg_store import PgStore
+from src.storage.pg_store import PgStore, _sqlalchemy_database_url
+
+
+def test_sqlalchemy_database_url_prefers_psycopg_driver():
+    assert _sqlalchemy_database_url("postgresql://user:pass@db:5432/app") == "postgresql+psycopg://user:pass@db:5432/app"
+    assert _sqlalchemy_database_url("postgres://user:pass@db:5432/app") == "postgresql+psycopg://user:pass@db:5432/app"
+    assert _sqlalchemy_database_url("postgresql+psycopg://user:pass@db:5432/app") == "postgresql+psycopg://user:pass@db:5432/app"
 
 
 class TestStorageBackendProtocol:
@@ -66,6 +72,7 @@ class TestPgStoreFallback:
         path = store.save_markdown("test-pg-3", "report/test.md", "# Hello")
         assert path.exists()
         assert path.read_text(encoding="utf-8") == "# Hello"
+        assert store.load_markdown("test-pg-3", "report/test.md") == "# Hello"
 
     def test_doc_dir_creates_directory(self, tmp_path):
         store = PgStore(database_url="", local_fallback_dir=str(tmp_path))
@@ -79,3 +86,15 @@ class TestPgStoreFallback:
         path = store.save_raw_pdf("test-pg-5", str(pdf_src))
         assert path.exists()
         assert path.read_bytes().startswith(b"%PDF")
+
+    def test_list_metas_and_delete_document(self, tmp_path):
+        store = PgStore(database_url="", local_fallback_dir=str(tmp_path))
+        meta = DocumentMeta(doc_id="test-pg-6", filename="report.pdf")
+        store.save_meta("test-pg-6", meta)
+        store.save_json("test-pg-6", "extracted/statements.json", {"income": []})
+
+        assert [item.doc_id for item in store.list_metas()] == ["test-pg-6"]
+        assert store.delete_document("test-pg-6") is True
+        assert store.load_meta("test-pg-6") is None
+        assert store.load_json("test-pg-6", "extracted/statements.json") is None
+        assert store.delete_document("test-pg-6") is False
