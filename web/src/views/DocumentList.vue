@@ -31,6 +31,7 @@ async function load() {
 function statusTag(s?: string | null): { type: 'success' | 'warning' | 'info' | 'danger'; label: string } {
   switch (s) {
     case 'completed': return { type: 'success', label: '已完成' }
+    case 'succeeded': return { type: 'success', label: '已完成' }
     case 'running': return { type: 'warning', label: '运行中' }
     case 'queued': return { type: 'info', label: '排队中' }
     case 'failed': return { type: 'danger', label: '失败' }
@@ -40,6 +41,17 @@ function statusTag(s?: string | null): { type: 'success' | 'warning' | 'info' | 
 
 function go(docId: string) {
   router.push(`/documents/${docId}`)
+}
+
+function handleCurrentPageUpdate(value: number) {
+  page.value = value
+  void load()
+}
+
+function handlePageSizeUpdate(value: number) {
+  pageSize.value = value
+  page.value = 1
+  void load()
 }
 
 onMounted(load)
@@ -111,13 +123,13 @@ onMounted(load)
 
       <div class="pager">
         <el-pagination
-          v-model:current-page="page"
-          v-model:page-size="pageSize"
+          :current-page="page"
+          :page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next"
-          @current-change="load"
-          @size-change="load"
+          @update:current-page="handleCurrentPageUpdate"
+          @update:page-size="handlePageSizeUpdate"
         />
       </div>
     </el-card>
