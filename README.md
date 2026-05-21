@@ -156,6 +156,17 @@ python -m src.cli show --doc-id <doc_id> --what report
 python -m src.cli render-report --doc-id <doc_id>
 ```
 
+### End-to-end example with a real listed-company PDF
+
+A runnable example that downloads a public Apple Inc. (NASDAQ:AAPL) filing
+and runs the full pipeline (mock LLM, no API key required):
+
+```bash
+python examples/real_pdf_analysis/run_example.py
+```
+
+See [`examples/real_pdf_analysis/README.md`](examples/real_pdf_analysis/README.md) for details and how to point it at other filings.
+
 ## Output Files
 
 Results are stored under `data/{doc_id}/`:
@@ -194,6 +205,28 @@ pip install -e ".[market]"       # Market data (tushare, polygon, matplotlib)
 pip install -e ".[monitoring]"   # Prometheus + OpenTelemetry
 pip install -e ".[all]"          # Everything
 ```
+
+## Contributing
+
+This project follows a standard open-source workflow: **all changes land via
+pull request** — direct pushes to `main` are blocked. See
+[CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md),
+and [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md) for the full
+process, and [SECURITY.md](SECURITY.md) for vulnerability reporting.
+
+Quick start:
+
+```bash
+git checkout -b feat/<short-description>
+# ... make changes, add tests ...
+bash scripts/local_ci.sh   # must pass
+git push -u origin HEAD
+gh pr create --base main --fill
+```
+
+## License
+
+[MIT](LICENSE).
 
 ## Not Financial Advice
 

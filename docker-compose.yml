@@ -1,11 +1,16 @@
-version: "3.9"
+# Compose Spec — `version:` is intentionally omitted (obsolete in v2 Compose).
 
 services:
   api:
-    build: .
+    build:
+      context: .
+      args:
+        EXTRAS: "celery,postgres,s3"
     ports:
       - "8000:8000"
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       - TASK_BACKEND=celery
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -20,9 +25,14 @@ services:
       - minio
 
   worker:
-    build: .
+    build:
+      context: .
+      args:
+        EXTRAS: "celery,postgres,s3"
     command: celery -A src.tasks worker --loglevel=info --concurrency=2
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - STORAGE_BACKEND=postgres
