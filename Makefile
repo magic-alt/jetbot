@@ -1,4 +1,4 @@
-.PHONY: dev test fmt lint typecheck worker eval docker-build docker-up docker-down
+.PHONY: dev test fmt lint typecheck worker eval docker-build docker-up docker-down web-install web-dev web-build web-lint
 
 # === Development ===
 dev:
@@ -33,3 +33,16 @@ docker-up:
 
 docker-down:
 	docker compose down
+
+# === Web UI (Vue 3 + Vite) ===
+web-install:
+	cd web && npm ci
+
+web-dev:
+	cd web && npm run dev
+
+web-build:
+	cd web && npm ci && npm run build
+
+web-lint:
+	cd web && npm run lint && npm run typecheck

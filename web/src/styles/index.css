@@ -1,0 +1,25 @@
+/* Global app styles */
+:root {
+  --jetbot-radius: 8px;
+}
+html, body, #app { height: 100%; margin: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei',
+    'Segoe UI', Helvetica, Arial, sans-serif;
+  background: #f5f7fa;
+  color: #303133;
+}
+a { color: var(--el-color-primary); text-decoration: none; }
+
+.panel-card { border-radius: var(--jetbot-radius); }
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.muted { color: var(--el-text-color-secondary); font-size: 12px; }
+.code-block {
+  background: #f4f4f5; border-radius: 4px; padding: 8px 12px;
+  font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12px;
+  white-space: pre-wrap; word-break: break-all;
+}

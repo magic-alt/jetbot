@@ -13,6 +13,25 @@ pip install -e .
 make dev
 ```
 
+## Web UI (Vue 3 + Vite)
+
+A Vue SPA in [web/](web/) visualizes the analysis pipeline (document list, raw
+table extraction, financial statements, risk signals, key notes, and the
+generated trader report) alongside the original PDF.
+
+```bash
+# Terminal 1: API
+make dev
+
+# Terminal 2: SPA dev server (proxies /v1 -> :8000)
+make web-install
+make web-dev
+# open http://localhost:5173
+```
+
+For production, `make web-build` writes to `web/dist/`, which is auto-mounted
+by FastAPI at `/ui` when present. See [web/README.md](web/README.md).
+
 Upload a PDF and trigger analysis (mock LLM if `OPENAI_API_KEY` is not set).
 
 ## Configure LLM
