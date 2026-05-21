@@ -13,15 +13,16 @@ from src.agent.graph import build_graph, get_cached_state
 from src.agent.state import AgentState
 from src.api.auth import verify_api_key
 from src.schemas.models import DocumentMeta
-from src.storage.local_store import LocalStore
+from src.storage.backend import get_storage_backend
 from src.storage.task_store import TaskStore
 from src.utils.ids import new_doc_id
 from src.utils.logging import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
-store = LocalStore()
-task_store = TaskStore()
+DATA_DIR = os.getenv("DATA_DIR") or "data"
+store = get_storage_backend(DATA_DIR)
+task_store = TaskStore(DATA_DIR)
 
 # Honour both the legacy env var and the new explicit one
 _MAX_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", os.getenv("MAX_UPLOAD_MB", "100")))
@@ -181,16 +182,16 @@ async def get_report(_auth: _AuthDep, doc_id: str):
 
 @router.get("/documents/{doc_id}/report.md")
 async def get_report_md(_auth: _AuthDep, doc_id: str):
-    path = Path(store.base_dir) / doc_id / "report" / "trader_report.md"
-    if not path.exists():
+    text = store.load_markdown(doc_id, "report/trader_report.md")
+    if text is None:
         return _err("not_found", "Report not found")
-    return PlainTextResponse(path.read_text(encoding="utf-8"))
+    return PlainTextResponse(text)
 
 
 @router.get("/documents/{doc_id}/statements")
 async def get_statements(_auth: _AuthDep, doc_id: str):
     data = store.load_json(doc_id, "extracted/statements.json")
-    if not data:
+    if data is None:
         return _err("not_found", "Statements not found")
     return _ok(data)
 
@@ -198,7 +199,7 @@ async def get_statements(_auth: _AuthDep, doc_id: str):
 @router.get("/documents/{doc_id}/notes")
 async def get_notes(_auth: _AuthDep, doc_id: str):
     data = store.load_json(doc_id, "extracted/notes.json")
-    if not data:
+    if data is None:
         return _err("not_found", "Notes not found")
     return _ok(data)
 
@@ -206,7 +207,7 @@ async def get_notes(_auth: _AuthDep, doc_id: str):
 @router.get("/documents/{doc_id}/risk-signals")
 async def get_risk_signals(_auth: _AuthDep, doc_id: str):
     data = store.load_json(doc_id, "extracted/risk_signals.json")
-    if not data:
+    if data is None:
         return _err("not_found", "Risk signals not found")
     return _ok(data)
 
@@ -223,25 +224,14 @@ async def list_documents(
     offset = max(0, offset)
 
     items: list[dict[str, Any]] = []
-    base = Path(store.base_dir)
-    if base.exists():
-        for entry in base.iterdir():
-            if not entry.is_dir():
-                continue
-            doc_id = entry.name
-            try:
-                meta = store.load_meta(doc_id)
-            except ValueError:
-                continue
-            if meta is None:
-                continue
-            task = task_store.get(doc_id)
-            items.append(
-                {
-                    "meta": meta.model_dump(mode="json"),
-                    "task": task,
-                }
-            )
+    for meta in store.list_metas():
+        task = task_store.get(meta.doc_id)
+        items.append(
+            {
+                "meta": meta.model_dump(mode="json"),
+                "task": task,
+            }
+        )
 
     items.sort(
         key=lambda it: (it["meta"].get("created_at") or ""),
@@ -260,6 +250,16 @@ async def get_tables(_auth: _AuthDep, doc_id: str):
     return _ok(data)
 
 
+@router.delete("/documents/{doc_id}")
+async def delete_document(_auth: _AuthDep, doc_id: str):
+    meta = store.load_meta(doc_id)
+    if meta is None:
+        return _err("not_found", "Document not found")
+    deleted = store.delete_document(doc_id)
+    task_store.delete(doc_id)
+    return _ok({"doc_id": doc_id, "deleted": deleted})
+
+
 @router.get("/documents/{doc_id}/pages")
 async def get_pages(_auth: _AuthDep, doc_id: str):
     data = store.load_json(doc_id, "extracted/pages.json")
@@ -271,10 +271,12 @@ async def get_pages(_auth: _AuthDep, doc_id: str):
 @router.get("/documents/{doc_id}/pdf")
 async def get_pdf(_auth: _AuthDep, doc_id: str):
     """Stream the original uploaded PDF so the SPA can preview it in an iframe."""
+    meta = store.load_meta(doc_id)
+    if meta is None:
+        return _err("not_found", "Document not found")
     pdf_path = store.doc_dir(doc_id) / "raw.pdf"
     if not pdf_path.exists():
         return _err("not_found", "PDF not found")
-    meta = store.load_meta(doc_id)
     download_name = meta.filename if meta else "document.pdf"
     return FileResponse(
         path=pdf_path,
@@ -291,7 +293,7 @@ async def get_pdf(_auth: _AuthDep, doc_id: str):
 def _run_analysis(meta: DocumentMeta, pdf_path: str) -> None:
     task_store.update(meta.doc_id, status="running", progress=10)
     graph = build_graph()
-    state = AgentState(doc_meta=meta, pdf_path=pdf_path, data_dir=str(store.base_dir))
+    state = AgentState(doc_meta=meta, pdf_path=pdf_path, data_dir=DATA_DIR)
     try:
         graph.invoke(state.model_dump())
         task_store.update(meta.doc_id, status="succeeded", progress=100)
@@ -306,7 +308,7 @@ def _save_partial_results(doc_id: str) -> None:
     if partial is None:
         return
     try:
-        s = LocalStore(partial.data_dir or "data")
+        s = get_storage_backend(partial.data_dir or DATA_DIR)
         if partial.pages:
             s.save_json(doc_id, "extracted/pages.json", [p.model_dump() for p in partial.pages])
         if partial.tables:

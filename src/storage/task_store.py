@@ -91,3 +91,9 @@ class TaskStore:
         if row is None:
             return None
         return {"doc_id": row[0], "status": row[1], "progress": row[2], "current_node": row[3], "error_message": row[4]}
+
+    def delete(self, doc_id: str) -> bool:
+        with self._lock:
+            cursor = self._conn.execute("DELETE FROM tasks WHERE doc_id = ?", (doc_id,))
+            self._conn.commit()
+        return cursor.rowcount > 0
