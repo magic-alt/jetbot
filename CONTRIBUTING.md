@@ -59,6 +59,26 @@ GitHub CLI commands.
 - All tests must complete within the 60s timeout.
 - Run with `make test` or `python -m pytest`.
 
+## Web UI development
+
+The Vue 3 + Vite SPA lives under [`web/`](web/). The dev server proxies
+`/v1` to the FastAPI backend on `:8000`, so run both:
+
+```bash
+make dev              # terminal 1 — backend
+make web-install      # one-time
+make web-dev          # terminal 2 — SPA on http://localhost:5173
+```
+
+Before pushing any change under `web/`, run:
+
+```bash
+make web-lint         # eslint + vue-tsc type check
+make web-build        # production build into web/dist/
+```
+
+The `web-build` GitHub Actions job runs these in CI for every PR.
+
 ## Reporting issues
 
 Please use the [issue templates](.github/ISSUE_TEMPLATE/) and include:

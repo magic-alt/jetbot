@@ -13,3 +13,8 @@ tmpclaude-*
 # Example runtime artifacts
 examples/**/output/
 examples/**/fixtures/*.pdf
+
+web/node_modules/
+web/dist/
+web/.vite/
+

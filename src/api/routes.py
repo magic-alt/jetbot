@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 
 from src.agent.graph import build_graph, get_cached_state
 from src.agent.state import AgentState
@@ -209,6 +209,83 @@ async def get_risk_signals(_auth: _AuthDep, doc_id: str):
     if not data:
         return _err("not_found", "Risk signals not found")
     return _ok(data)
+
+
+# ── Web-UI support endpoints ────────────────────────────────────────────────
+@router.get("/documents")
+async def list_documents(
+    _auth: _AuthDep,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """Paginated list of documents in the local store, newest first."""
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+
+    items: list[dict[str, Any]] = []
+    base = Path(store.base_dir)
+    if base.exists():
+        for entry in base.iterdir():
+            if not entry.is_dir():
+                continue
+            doc_id = entry.name
+            try:
+                meta = store.load_meta(doc_id)
+            except ValueError:
+                continue
+            if meta is None:
+                continue
+            task = task_store.get(doc_id)
+            items.append(
+                {
+                    "meta": meta.model_dump(mode="json"),
+                    "task": task,
+                }
+            )
+
+    items.sort(
+        key=lambda it: (it["meta"].get("created_at") or ""),
+        reverse=True,
+    )
+    total = len(items)
+    page = items[offset : offset + limit]
+    return _ok({"items": page, "total": total, "limit": limit, "offset": offset})
+
+
+@router.get("/documents/{doc_id}/tables")
+async def get_tables(_auth: _AuthDep, doc_id: str):
+    data = store.load_json(doc_id, "extracted/tables.json")
+    if data is None:
+        return _err("not_found", "Tables not found")
+    return _ok(data)
+
+
+@router.get("/documents/{doc_id}/pages")
+async def get_pages(_auth: _AuthDep, doc_id: str):
+    data = store.load_json(doc_id, "extracted/pages.json")
+    if data is None:
+        return _err("not_found", "Pages not found")
+    return _ok(data)
+
+
+@router.get("/documents/{doc_id}/pdf")
+async def get_pdf(_auth: _AuthDep, doc_id: str):
+    """Stream the original uploaded PDF so the SPA can preview it in an iframe."""
+    pdf_path = store.doc_dir(doc_id) / "raw.pdf"
+    if not pdf_path.exists():
+        return _err("not_found", "PDF not found")
+    meta = store.load_meta(doc_id)
+    download_name = meta.filename if meta else "document.pdf"
+    return FileResponse(
+        path=pdf_path,
+        media_type="application/pdf",
+        # `inline` so browsers render in the iframe instead of forcing download.
+        headers={
+            "Content-Disposition": f'inline; filename="{download_name}"',
+            # Allow the same-origin SPA to embed this in an <iframe>.
+            "X-Frame-Options": "SAMEORIGIN",
+        },
+    )
 
 
 def _run_analysis(meta: DocumentMeta, pdf_path: str) -> None:
