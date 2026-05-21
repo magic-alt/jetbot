@@ -38,6 +38,10 @@ _MODEL_LIMITS: dict[str, int] = {
     "claude-opus-4-20250514": 200000,
     "claude-3-5-sonnet-20241022": 200000,
     "claude-3-haiku-20240307": 200000,
+    "deepseek-chat": 64000,
+    "deepseek-reasoner": 64000,
+    "qwen": 32768,
+    "llama": 32768,
 }
 
 

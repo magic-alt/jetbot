@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -164,3 +164,95 @@ class EventStudyResult(BaseModel):
     volatility: dict[str, float] = Field(default_factory=dict)
     volume: dict[str, float] = Field(default_factory=dict)
     data_source: str
+
+
+class AgentCapability(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    capability_id: str
+    name: str
+    description: str
+    enabled: bool = True
+    provider: str | None = None
+    inputs: list[str] = Field(default_factory=list)
+    outputs: list[str] = Field(default_factory=list)
+
+
+class ModelInvocation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str
+    model: str
+    task: str
+    status: Literal["succeeded", "failed", "skipped"]
+    elapsed_ms: int | None = None
+    error: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=_utc_now)
+
+
+class AgentRun(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str
+    doc_id: str
+    node_name: str
+    provider: str
+    model: str
+    status: Literal["succeeded", "failed", "skipped"]
+    started_at: datetime = Field(default_factory=_utc_now)
+    completed_at: datetime | None = None
+    elapsed_ms: int | None = None
+    error: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AnalysisContextSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_id: str
+    source_type: Literal["page_text", "table", "statement", "note", "risk_signal", "validation"]
+    title: str | None = None
+    text: str
+    source_refs: list[SourceRef] = Field(default_factory=list)
+    tokens_estimate: int | None = None
+
+
+class AnalysisContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    doc_id: str
+    metadata: DocumentMeta
+    statement_snapshot: dict[str, float] = Field(default_factory=dict)
+    validation_summary: dict[str, Any] = Field(default_factory=dict)
+    sources: list[AnalysisContextSource] = Field(default_factory=list)
+    token_budget: int
+    tokens_estimate: int
+    created_at: datetime = Field(default_factory=_utc_now)
+
+
+class AnalysisFinding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    finding_id: str
+    category: str
+    title: str
+    severity: Literal["low", "medium", "high"]
+    summary: str
+    detail: str | None = None
+    metrics: dict[str, float | str] = Field(default_factory=dict)
+    evidence: list[SourceRef] = Field(default_factory=list)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class DeepAnalysisResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    doc_id: str
+    provider: str
+    model: str
+    summary: str
+    findings: list[AnalysisFinding] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    invocations: list[ModelInvocation] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=_utc_now)

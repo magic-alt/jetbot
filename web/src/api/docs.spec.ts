@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeStatements } from './docs'
+import { normalizeDeepAnalysis, normalizeStatements } from './docs'
 
 describe('normalizeStatements', () => {
   it('normalizes backend statement objects and canonical totals', () => {
@@ -39,5 +39,34 @@ describe('normalizeStatements', () => {
     expect(result.income_statement?.some((item) => item.name === 'net income' && item.value === 93736)).toBe(true)
     expect(result.balance_sheet?.some((item) => item.name === 'total assets' && item.value === 364980)).toBe(true)
     expect(result.cash_flow?.some((item) => item.name === 'operating cf' && item.value === 118254)).toBe(true)
+  })
+})
+
+describe('normalizeDeepAnalysis', () => {
+  it('normalizes findings and source confidence', () => {
+    const result = normalizeDeepAnalysis({
+      doc_id: 'doc-1',
+      provider: 'mock',
+      model: 'mock',
+      summary: 'summary',
+      findings: [
+        {
+          title: 'Cash quality',
+          severity: 'medium',
+          summary: 'Operating cashflow trails earnings.',
+          evidence: [{ page: 3, quote: 'Cash generated', confidence: 0.75 }],
+          confidence: 0.7,
+        },
+      ],
+      limitations: ['limited'],
+      invocations: [],
+    })
+
+    expect(result?.findings[0]).toMatchObject({
+      title: 'Cash quality',
+      severity: 'medium',
+      confidence: 0.7,
+    })
+    expect(result?.findings[0].evidence?.[0]).toMatchObject({ page: 3, confidence: 0.75 })
   })
 })

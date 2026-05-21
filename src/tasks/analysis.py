@@ -70,6 +70,12 @@ try:
                     s.save_json(doc_id, "extracted/tables.json", [t.model_dump() for t in partial.tables])
                 if partial.statements:
                     s.save_json(doc_id, "extracted/statements.json", {k: v.model_dump() for k, v in partial.statements.items()})
+                if partial.analysis_context:
+                    s.save_json(doc_id, "extracted/analysis_context.json", partial.analysis_context.model_dump(mode="json"))
+                if partial.deep_analysis:
+                    s.save_json(doc_id, "extracted/deep_analysis.json", partial.deep_analysis.model_dump(mode="json"))
+                if partial.agent_runs:
+                    s.save_json(doc_id, "extracted/agent_runs.json", [run.model_dump(mode="json") for run in partial.agent_runs])
             except Exception:
                 pass
     else:

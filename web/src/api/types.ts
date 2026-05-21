@@ -5,6 +5,7 @@ export interface SourceRef {
   table_id?: string | null
   bbox?: [number, number, number, number] | null
   quote?: string | null
+  confidence?: number
 }
 
 export interface MetricItem {
@@ -89,4 +90,62 @@ export interface PdfOperationResult {
   page_count: number
   created_at: string
   download_url: string
+}
+
+export interface AgentCapability {
+  capability_id: string
+  name: string
+  description: string
+  enabled: boolean
+  provider?: string | null
+  inputs: string[]
+  outputs: string[]
+}
+
+export interface ModelInvocation {
+  provider: string
+  model: string
+  task: string
+  status: 'succeeded' | 'failed' | 'skipped' | string
+  elapsed_ms?: number | null
+  error?: string | null
+  metadata?: Record<string, unknown>
+  created_at?: string | null
+}
+
+export interface AgentRun {
+  run_id: string
+  doc_id: string
+  node_name: string
+  provider: string
+  model: string
+  status: 'succeeded' | 'failed' | 'skipped' | string
+  started_at?: string | null
+  completed_at?: string | null
+  elapsed_ms?: number | null
+  error?: string | null
+  metadata?: Record<string, unknown>
+}
+
+export interface AnalysisFinding {
+  finding_id: string
+  category: string
+  title: string
+  severity: 'low' | 'medium' | 'high' | string
+  summary: string
+  detail?: string | null
+  metrics?: Record<string, number | string>
+  evidence?: SourceRef[]
+  confidence?: number
+}
+
+export interface DeepAnalysisResult {
+  doc_id: string
+  provider: string
+  model: string
+  summary: string
+  findings: AnalysisFinding[]
+  limitations: string[]
+  invocations: ModelInvocation[]
+  created_at?: string | null
 }

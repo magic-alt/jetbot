@@ -6,6 +6,8 @@ from typing import Any
 from pydantic import ValidationError
 
 from src.schemas.models import (
+    AnalysisFinding,
+    DeepAnalysisResult,
     FinancialStatement,
     KeyNote,
     RiskSignal,
@@ -38,9 +40,13 @@ class MockLLMClient:
         metadata: dict[str, Any] | None = None,
     ) -> Any:
         del run_name, tags, metadata
+        output_model_name = getattr(request.output_model, "__name__", "")
         prompt = f"{request.system_template}\n{request.user_template}".lower()
-        if "statement" in prompt or "financialstatement" in prompt:
-            data: Any = _mock_statement(prompt)
+        data: Any
+        if output_model_name == "DeepAnalysisResult" or "deep analysis" in prompt:
+            data = _mock_deep_analysis()
+        elif "statement" in prompt or "financialstatement" in prompt:
+            data = _mock_statement(prompt)
         elif "key note" in prompt or "notes" in prompt:
             data = _mock_notes()
         elif "risk signal" in prompt or "risksignal" in prompt:
@@ -133,6 +139,29 @@ def _mock_report() -> dict[str, object]:
         limitations=["Mock output; no model configured."],
     )
     return report.model_dump(mode="json")
+
+
+def _mock_deep_analysis() -> dict[str, object]:
+    finding = AnalysisFinding(
+        finding_id="mock-finding-1",
+        category="overview",
+        title="Mock deep analysis",
+        severity="low",
+        summary="Mock deep analysis generated for deterministic tests.",
+        detail="Configure a real provider or Hermes agent for substantive second-pass analysis.",
+        metrics={},
+        evidence=_mock_evidence(),
+        confidence=0.2,
+    )
+    result = DeepAnalysisResult(
+        doc_id="mock",
+        provider="mock",
+        model="mock",
+        summary="Mock deep analysis summary.",
+        findings=[finding],
+        limitations=["Mock output; no model configured."],
+    )
+    return result.model_dump(mode="json")
 
 
 def _coerce_output(data: Any, output_model: Any) -> Any:
