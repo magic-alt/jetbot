@@ -1,12 +1,21 @@
 # ── Builder stage ──────────────────────────────────────────────────────────
 FROM python:3.12-slim AS builder
 
+# Build-time arg to opt into extra dependency groups, e.g.
+#   docker build --build-arg EXTRAS="celery,postgres,s3" -t jetbot .
+#   docker build --build-arg EXTRAS="all" -t jetbot .
+# Default is base deps only — keeps the image small and the build fast.
+ARG EXTRAS=""
+
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src/ src/
 
-RUN pip install --no-cache-dir --prefix=/install -e ".[all]" || \
-    pip install --no-cache-dir --prefix=/install -e .
+RUN if [ -n "$EXTRAS" ]; then \
+        pip install --no-cache-dir --prefix=/install -e ".[${EXTRAS}]"; \
+    else \
+        pip install --no-cache-dir --prefix=/install -e .; \
+    fi
 
 # ── Runtime stage ──────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
