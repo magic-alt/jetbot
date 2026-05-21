@@ -155,10 +155,11 @@ export const docsApi = {
   tables(docId: string) {
     return unwrap<any>(http.get(`/v1/documents/${docId}/tables`)).then(normalizeTables)
   },
+  pdfBlob(docId: string) {
+    return http.get(`/v1/documents/${docId}/pdf`, { responseType: 'blob' }).then((r) => r.data as Blob)
+  },
   pdfUrl(docId: string) {
-    // Note: the iframe cannot send the X-API-Key header. For deployments
-    // with auth enabled, place the SPA + API behind a reverse proxy that
-    // injects the header, or disable auth for this read-only route.
+    // Keep the raw route available for explicit downloads or direct linking.
     return buildApiUrl(`/v1/documents/${docId}/pdf`)
   },
   upload(file: File, opts: { language?: string; ocr?: boolean } = {}) {

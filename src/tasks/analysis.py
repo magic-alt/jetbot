@@ -17,7 +17,7 @@ try:
     from src.tasks import app
 
     if app is not None:
-        @app.task(bind=True, max_retries=2, default_retry_delay=30, name="run_analysis")
+        @app.task(bind=True, max_retries=2, default_retry_delay=30, name="run_analysis", lazy=False)
         def run_analysis(self: Any, doc_id: str, pdf_path: str, meta_dict: dict[str, Any]) -> dict[str, Any]:
             """Execute the LangGraph analysis pipeline as a Celery task.
 
