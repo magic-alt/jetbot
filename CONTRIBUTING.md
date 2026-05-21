@@ -8,22 +8,24 @@ Direct pushes to `main` are not allowed.
 
 1. **Fork** the repository (or create a feature branch if you have write
    access).
-2. Create a topic branch from `main`:
+2. **Always create a fresh working branch before editing files. Never make
+   changes directly on `main`.**
+3. Create a topic branch from `main`:
    ```bash
    git checkout -b feat/<short-description>
    # or fix/<...>, docs/<...>, chore/<...>, refactor/<...>
    ```
-3. Make your changes, including tests.
-4. Run the full local CI pipeline before committing:
+4. Make your changes, including tests.
+5. Run the full local CI pipeline before committing:
    ```bash
    bash scripts/local_ci.sh
    ```
    The git pre-commit hook (`.git/hooks/pre-commit`, if installed) also runs
    these checks automatically.
-5. Commit using concise, imperative messages
+6. Commit using concise, imperative messages
    (e.g. `add validator for balance check`).
-6. Push your branch and open a pull request against `main`.
-7. Wait for CI to pass and for at least one review approval before merging.
+7. Push your branch and open a pull request against `main`.
+8. Wait for CI to pass and for at least one review approval before merging.
    Use **Squash and merge** by default.
 
 ## Branch protection (maintainers)
@@ -35,7 +37,8 @@ Settings → Branches → Branch protection rules):
 - Require approvals: **1** (at least)
 - Dismiss stale pull request approvals when new commits are pushed
 - Require status checks to pass before merging:
-  - `lint-and-test`
+   - `lint-and-test (3.12)`
+   - `Web UI build`
 - Require branches to be up to date before merging
 - Require linear history
 - Do not allow bypassing the above settings
@@ -77,7 +80,9 @@ make web-lint         # eslint + vue-tsc type check
 make web-build        # production build into web/dist/
 ```
 
-The `web-build` GitHub Actions job runs these in CI for every PR.
+The full local CI script (`bash scripts/local_ci.sh`) now runs the same Python
+and web checks as GitHub CI. The `web-build` GitHub Actions job runs the web
+checks for every PR.
 
 ## Reporting issues
 

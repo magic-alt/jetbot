@@ -130,6 +130,18 @@ make docker-up       # Start full stack (API + worker + Redis + Postgres + MinIO
 make docker-down     # Stop all containers
 ```
 
+If common local ports are already occupied, override the host-side bindings
+before starting the stack:
+
+```bash
+JETBOT_API_PORT=18000 \
+JETBOT_REDIS_PORT=16379 \
+JETBOT_POSTGRES_PORT=15432 \
+JETBOT_MINIO_PORT=19000 \
+JETBOT_MINIO_CONSOLE_PORT=19001 \
+docker compose up -d --build
+```
+
 ## API Examples
 
 ```bash
@@ -242,6 +254,9 @@ bash scripts/local_ci.sh   # must pass
 git push -u origin HEAD
 gh pr create --base main --fill
 ```
+
+`bash scripts/local_ci.sh` now covers the same core checks as GitHub CI:
+Python lint/type/test plus web lint/type/build.
 
 ## License
 

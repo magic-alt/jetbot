@@ -2,6 +2,7 @@
 import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Key } from '@element-plus/icons-vue'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -32,51 +33,53 @@ function saveApiKey() {
 </script>
 
 <template>
-  <el-container class="layout">
-    <el-header class="app-header">
-      <div class="brand" @click="router.push('/')">
-        <span class="logo">📊</span>
-        <span class="title">Jetbot · 财报分析平台</span>
-      </div>
-      <el-menu
-        mode="horizontal"
-        :default-active="activeMenu"
-        :ellipsis="false"
-        class="nav-menu"
-        @select="(idx: string) => router.push(idx)"
-      >
-        <el-menu-item index="/">文档列表</el-menu-item>
-        <el-menu-item index="/upload">上传分析</el-menu-item>
-      </el-menu>
-      <div class="header-actions">
-        <el-button size="small" @click="openApiKey">
-          <el-icon><Key /></el-icon>
-          <span style="margin-left:4px">{{ auth.apiKey ? 'API Key 已设置' : '设置 API Key' }}</span>
-        </el-button>
-      </div>
-    </el-header>
+  <el-config-provider :locale="zhCn">
+    <el-container class="layout">
+      <el-header class="app-header">
+        <div class="brand" @click="router.push('/')">
+          <span class="logo">📊</span>
+          <span class="title">Jetbot · 财报分析平台</span>
+        </div>
+        <el-menu
+          mode="horizontal"
+          :default-active="activeMenu"
+          :ellipsis="false"
+          class="nav-menu"
+          @select="(idx: string) => router.push(idx)"
+        >
+          <el-menu-item index="/">文档列表</el-menu-item>
+          <el-menu-item index="/upload">上传分析</el-menu-item>
+        </el-menu>
+        <div class="header-actions">
+          <el-button size="small" @click="openApiKey">
+            <el-icon><Key /></el-icon>
+            <span style="margin-left:4px">{{ auth.apiKey ? 'API Key 已设置' : '设置 API Key' }}</span>
+          </el-button>
+        </div>
+      </el-header>
 
-    <el-main class="app-main">
-      <router-view v-slot="{ Component }">
-        <transition name="fade" mode="out-in">
-          <component :is="Component" />
-        </transition>
-      </router-view>
-    </el-main>
+      <el-main class="app-main">
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </el-main>
 
-    <el-dialog v-model="showApiKeyDialog" title="设置 API Key" width="420px">
-      <el-form>
-        <el-form-item label="X-API-Key">
-          <el-input v-model="tmpKey" placeholder="留空表示不发送该请求头" show-password />
-        </el-form-item>
-        <p class="hint">仅保存在浏览器 localStorage,刷新后仍生效。</p>
-      </el-form>
-      <template #footer>
-        <el-button @click="showApiKeyDialog = false">取消</el-button>
-        <el-button type="primary" @click="saveApiKey">保存</el-button>
-      </template>
-    </el-dialog>
-  </el-container>
+      <el-dialog v-model="showApiKeyDialog" title="设置 API Key" width="420px">
+        <el-form>
+          <el-form-item label="X-API-Key">
+            <el-input v-model="tmpKey" placeholder="留空表示不发送该请求头" show-password />
+          </el-form-item>
+          <p class="hint">仅保存在浏览器 localStorage,刷新后仍生效。</p>
+        </el-form>
+        <template #footer>
+          <el-button @click="showApiKeyDialog = false">取消</el-button>
+          <el-button type="primary" @click="saveApiKey">保存</el-button>
+        </template>
+      </el-dialog>
+    </el-container>
+  </el-config-provider>
 </template>
 
 <style scoped>
