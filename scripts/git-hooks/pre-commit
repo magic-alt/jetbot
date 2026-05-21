@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Pre-commit hook: run the same checks as CI before allowing a commit.
+# Install with:
+#   cp scripts/git-hooks/pre-commit .git/hooks/pre-commit
+#   chmod +x .git/hooks/pre-commit
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# Block direct commits on main — all changes must come via PR.
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
+  echo "ERROR: Direct commits to '$BRANCH' are not allowed."
+  echo "       Create a feature branch and open a pull request."
+  exit 1
+fi
+
+bash scripts/local_ci.sh
