@@ -1,267 +1,194 @@
-# Financial Report PDF Agent
+# Jetbot
 
-A FastAPI service and CLI for parsing financial report PDFs, extracting structured statements and notes, running validation checks, and generating a trader-style report with evidence references.
+Jetbot is a financial report analysis platform that turns PDF filings into structured financial statements, key notes, risk signals, event-study outputs, and trader-style summaries. It combines PDF extraction, validation, LLM orchestration, a FastAPI backend, and a Vue dashboard in one repository.
 
-Supports mock mode (no API key required), OpenAI, and Anthropic Claude models. Includes OCR for scanned PDFs, embedding-based RAG retrieval, token overflow protection, market data event study, and optional Celery/Postgres/S3 infrastructure. Fully containerized with Docker, CI/CD via GitHub Actions, and Prometheus metrics.
+It is designed for teams that need a single workflow to ingest reports, inspect extracted evidence, and ship the results through an API, a CLI, or a browser UI.
 
-## Quick Start (Mock Mode)
+## Highlights
+
+- End-to-end PDF pipeline for raw text, tables, statements, notes, and report generation.
+- Works in mock mode out of the box, with optional OpenAI and Anthropic model routing.
+- Vue 3 dashboard for reviewing original PDFs alongside extraction and analysis outputs.
+- Docker-first local stack with API, worker, Redis, PostgreSQL, and MinIO.
+- Pluggable storage, retrieval, tracing, and market-data integrations.
+- Production-friendly defaults for auth, rate limiting, metrics, and tracing.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A[Financial PDF] --> B[PDF extraction and OCR]
+    B --> C[Normalization and validation]
+    C --> D[LLM enrichment and report generation]
+    C --> E[Risk signals and event study]
+    D --> F[FastAPI and CLI]
+    E --> F
+    F --> G[Vue dashboard at /ui]
+```
+
+## Quick Start
+
+### Option 1: Local development
+
+Use this path when you want the fastest edit-run loop.
 
 ```bash
 python -m venv .venv
-. .venv/Scripts/activate
+# activate the virtual environment for your shell
 pip install -e .
 make dev
 ```
 
-## Web UI (Vue 3 + Vite)
+The API starts at `http://127.0.0.1:8000`.
 
-A Vue SPA in [web/](web/) visualizes the analysis pipeline (document list, raw
-table extraction, financial statements, risk signals, key notes, and the
-generated trader report) alongside the original PDF.
+If you want the Vue frontend in dev mode as well:
 
 ```bash
-# Terminal 1: API
-make dev
-
-# Terminal 2: SPA dev server (proxies /v1 -> :8000)
 make web-install
 make web-dev
-# open http://localhost:5173
 ```
 
-For production, `make web-build` writes to `web/dist/`, which is auto-mounted
-by FastAPI at `/ui` when present. See [web/README.md](web/README.md).
+The Vite app runs at `http://127.0.0.1:5173` and proxies API requests to the local backend.
 
-Upload a PDF and trigger analysis (mock LLM if `OPENAI_API_KEY` is not set).
+### Option 2: Full Docker stack
 
-## Configure LLM
-
-### OpenAI
-
-1. Copy `.env.example` to `.env`
-2. Set `OPENAI_API_KEY` and optionally `OPENAI_MODEL` (default: `gpt-4.1-mini`)
-3. Restart the API or CLI
-
-### Anthropic Claude
-
-1. Set `ANTHROPIC_API_KEY` in `.env`
-2. Set `LLM_DEFAULT_MODEL=anthropic:claude-sonnet-4-20250514` (or other Claude model)
-
-### Multi-Model Routing
-
-Route different tasks to different models for cost/quality optimization:
+Use this path when you want the full local system with background worker and infrastructure services.
 
 ```bash
-LLM_EXTRACTION_MODEL=openai:gpt-4.1       # High-accuracy for statement extraction
-LLM_REPORT_MODEL=openai:gpt-4.1-mini      # Fast model for report generation
+copy .env.example .env
+make docker-up
 ```
 
-Format: `provider:model` (e.g. `openai:gpt-4.1`, `anthropic:claude-sonnet-4-20250514`)
+`make docker-up` now does four things in one flow:
 
-### LangSmith Tracing (Optional)
+- builds the backend image with the Vue production bundle included
+- starts the API, worker, Redis, PostgreSQL, and MinIO services
+- waits until the API health endpoint is ready
+- opens the frontend automatically at `http://127.0.0.1:8000/ui/`
+
+Set `JETBOT_OPEN_BROWSER=0` if you want to skip the automatic browser launch.
+
+Stop the stack with:
 
 ```bash
-LANGSMITH_TRACING=true
-LANGSMITH_API_KEY=<your-key>
-LANGSMITH_PROJECT=financial-report-agent
+make docker-down
 ```
 
-## RAG Retrieval Modes
+## What You Get
 
-Set `RAG_MODE` in `.env`:
+After startup, the main entry points are:
 
-| Mode | Description | Dependencies |
-|------|-------------|-------------|
-| `token_overlap` (default) | Lightweight token-overlap scoring | None |
-| `embedding` | FAISS + sentence-transformers | `pip install -e ".[embeddings]"` |
-| `hybrid` | 0.7 embedding + 0.3 BM25 fusion | `pip install -e ".[embeddings]"` |
+| Surface | URL / Command | Notes |
+| --- | --- | --- |
+| Web UI | `http://127.0.0.1:8000/ui/` | Review uploaded PDFs, tables, statements, signals, and generated reports |
+| API | `http://127.0.0.1:8000/v1` | Programmatic ingestion and retrieval |
+| OpenAPI docs | `http://127.0.0.1:8000/docs` | Interactive API explorer |
+| Health | `http://127.0.0.1:8000/health` | Liveness probe |
+| Metrics | `http://127.0.0.1:8000/metrics` | Prometheus endpoint |
+| CLI | `python -m src.cli --help` | Local automation and scripting |
 
-Embedding model is auto-selected by document language (Chinese: `bge-base-zh`, English: `all-MiniLM`). Override with `EMBEDDING_MODEL`.
+## Common Workflows
 
-## Infrastructure Options
-
-### Celery Task Queue (Optional)
-
-```bash
-TASK_BACKEND=celery
-CELERY_BROKER_URL=redis://localhost:6379/0
-```
-
-Start worker: `make worker`
-
-### PostgreSQL Storage (Optional)
-
-```bash
-STORAGE_BACKEND=postgres
-DATABASE_URL=postgresql://user:pass@localhost/jetbot
-```
-
-Install: `pip install -e ".[postgres]"`
-
-### S3/MinIO Object Storage (Optional)
-
-```bash
-S3_ENDPOINT=http://localhost:9000
-S3_BUCKET=jetbot-pdfs
-S3_ACCESS_KEY=minio
-S3_SECRET_KEY=minio123
-```
-
-Install: `pip install -e ".[s3]"`
-
-### Market Data Providers (Optional)
-
-Supports multiple market data providers for event study analysis:
-
-```bash
-MARKET_DATA_PROVIDER=tushare   # Chinese A-share (requires TUSHARE_TOKEN)
-MARKET_DATA_PROVIDER=polygon   # US stocks (requires POLYGON_API_KEY)
-MARKET_DATA_PROVIDER=yfinance  # Yahoo Finance (requires yfinance pip package)
-MARKET_DATA_PROVIDER=dummy     # No-op (default)
-```
-
-Install: `pip install -e ".[market]"`
-
-### Docker Deployment (Optional)
-
-```bash
-make docker-build    # Build Docker image
-make docker-up       # Start full stack (API + worker + Redis + Postgres + MinIO)
-make docker-down     # Stop all containers
-```
-
-If common local ports are already occupied, override the host-side bindings
-before starting the stack:
-
-```bash
-JETBOT_API_PORT=18000 \
-JETBOT_REDIS_PORT=16379 \
-JETBOT_POSTGRES_PORT=15432 \
-JETBOT_MINIO_PORT=19000 \
-JETBOT_MINIO_CONSOLE_PORT=19001 \
-docker compose up -d --build
-```
-
-## API Examples
-
-```bash
-# Health check (no auth required)
-curl http://localhost:8000/health
-
-# Upload PDF
-curl -F "file=@path/to/report.pdf" \
-     -H "X-API-Key: your-key" \
-     http://localhost:8000/v1/documents
-
-# Trigger analysis
-curl -X POST -H "X-API-Key: your-key" \
-     http://localhost:8000/v1/documents/<doc_id>/analyze
-
-# Get task status
-curl -H "X-API-Key: your-key" \
-     http://localhost:8000/v1/documents/<doc_id>
-
-# Get markdown report
-curl -H "X-API-Key: your-key" \
-     http://localhost:8000/v1/documents/<doc_id>/report.md
-
-# Get structured statements
-curl -H "X-API-Key: your-key" \
-     http://localhost:8000/v1/documents/<doc_id>/statements
-
-# Get risk signals
-curl -H "X-API-Key: your-key" \
-     http://localhost:8000/v1/documents/<doc_id>/risk-signals
-
-# Prometheus metrics (no auth required)
-curl http://localhost:8000/metrics
-```
-
-Note: `API_KEYS` env var controls authentication. Leave blank to disable auth.
-
-## CLI Examples
+### Analyze a PDF from the CLI
 
 ```bash
 python -m src.cli analyze --pdf path/to/report.pdf --out data --company "Example Co" --period-end 2025-12-31
-python -m src.cli show --doc-id <doc_id> --what report
-python -m src.cli render-report --doc-id <doc_id>
 ```
 
-### End-to-end example with a real listed-company PDF
-
-A runnable example that downloads a public Apple Inc. (NASDAQ:AAPL) filing
-and runs the full pipeline (mock LLM, no API key required):
+### Run the bundled real-PDF example
 
 ```bash
 python examples/real_pdf_analysis/run_example.py
 ```
 
-See [`examples/real_pdf_analysis/README.md`](examples/real_pdf_analysis/README.md) for details and how to point it at other filings.
+### Call the API directly
 
-## Output Files
+```bash
+curl -F "file=@path/to/report.pdf" \
+  -H "X-API-Key: your-key" \
+  http://127.0.0.1:8000/v1/documents
 
-Results are stored under `data/{doc_id}/`:
+curl -X POST \
+  -H "X-API-Key: your-key" \
+  http://127.0.0.1:8000/v1/documents/<doc_id>/analyze
+```
 
-- `raw.pdf` — uploaded PDF
-- `meta.json` — document metadata
-- `extracted/pages.json` — per-page text
-- `extracted/tables.json` — extracted tables
-- `extracted/statements.json` — structured financial statements
-- `extracted/notes.json` — key notes (accounting policy, audit opinion, etc.)
-- `extracted/risk_signals.json` — risk signals with evidence
-- `extracted/event_study.json` — event study results (if market data available)
-- `report/trader_report.json` — structured trader report
-- `report/trader_report.md` — markdown trader report
-- `report/event_study.png` — event study chart (if market data available)
+## Configuration
+
+Jetbot starts in mock mode if no provider key is configured. Most teams only need a small set of environment variables to get productive:
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | Enable OpenAI-backed extraction and reporting | empty |
+| `ANTHROPIC_API_KEY` | Enable Anthropic-backed models | empty |
+| `LLM_DEFAULT_MODEL` | Default router target in `provider:model` format | empty |
+| `LLM_EXTRACTION_MODEL` | Override the extraction model | empty |
+| `LLM_REPORT_MODEL` | Override the reporting model | empty |
+| `RAG_MODE` | Retrieval mode: `token_overlap`, `embedding`, `hybrid` | `token_overlap` |
+| `TASK_BACKEND` | `background` or `celery` | `background` |
+| `STORAGE_BACKEND` | `local` or `postgres` | `local` |
+| `API_KEYS` | Comma-separated API keys; blank disables auth | empty |
+| `JETBOT_API_PORT` | Host port for the Dockerized API/UI | `8000` |
+
+See `.env.example` for the full configuration surface, including tracing, storage, port overrides, rate limiting, and market-data settings.
+
+## Optional Capability Packs
+
+Install only the packages you need:
+
+```bash
+pip install -e ".[embeddings]"
+pip install -e ".[anthropic]"
+pip install -e ".[celery]"
+pip install -e ".[postgres]"
+pip install -e ".[s3]"
+pip install -e ".[market]"
+pip install -e ".[monitoring]"
+pip install -e ".[all]"
+```
 
 ## Development
 
 ```bash
-make test        # Run 319 tests
-make eval        # Run golden evaluation tests
-make fmt         # Format code (ruff)
-make lint        # Lint code (ruff)
-make typecheck   # Type check (mypy)
+make test
+make eval
+make fmt
+make lint
+make typecheck
+make web-lint
+make web-build
 ```
 
-### Optional Dependencies
+The repository is organized around a small number of clear surfaces:
 
-```bash
-pip install -e ".[embeddings]"   # FAISS + sentence-transformers
-pip install -e ".[anthropic]"    # Anthropic Claude
-pip install -e ".[celery]"       # Celery + Redis
-pip install -e ".[postgres]"     # PostgreSQL + SQLAlchemy
-pip install -e ".[s3]"           # S3/MinIO (boto3)
-pip install -e ".[market]"       # Market data (tushare, polygon, matplotlib)
-pip install -e ".[monitoring]"   # Prometheus + OpenTelemetry
-pip install -e ".[all]"          # Everything
-```
+- `src/api/` for HTTP entry points and application wiring
+- `src/pdf/` for extraction, rendering, tables, and OCR
+- `src/finance/` for schemas, normalization, validation, and signal logic
+- `src/agent/` for pipeline orchestration and state handling
+- `src/market/` for event-study analysis and market providers
+- `web/` for the Vue 3 dashboard
+- `tests/` for API, storage, pipeline, frontend-adjacent, and integration coverage
+- `docs/` for architecture, branch protection, and project notes
 
 ## Contributing
 
-This project follows a standard open-source workflow: **all changes land via
-pull request** — direct pushes to `main` are blocked. See
-[CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md),
-and [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md) for the full
-process, and [SECURITY.md](SECURITY.md) for vulnerability reporting.
-
-Quick start:
+All changes land through pull requests.
 
 ```bash
 git checkout -b feat/<short-description>
-# ... make changes, add tests ...
-bash scripts/local_ci.sh   # must pass
+bash scripts/local_ci.sh
 git push -u origin HEAD
 gh pr create --base main --fill
 ```
 
-`bash scripts/local_ci.sh` now covers the same core checks as GitHub CI:
-Python lint/type/test plus web lint/type/build.
+Before opening a PR, make sure local CI passes. The script covers Python linting, typing, tests, and the web checks that mirror CI.
+
+See `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, and `docs/BRANCH_PROTECTION.md` for project policy and contribution details.
 
 ## License
 
-[MIT](LICENSE).
+MIT. See `LICENSE`.
 
 ## Not Financial Advice
 
-This system provides structured extraction and analytical signals only. It does not provide investment advice or recommend trades.
+Jetbot produces structured extraction and analytical signals. It does not provide investment advice or recommend trades.
