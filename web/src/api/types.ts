@@ -77,3 +77,16 @@ export interface ExtractedTable {
   title?: string | null
   cells: TableCell[]
 }
+
+export interface PdfOperationResult {
+  doc_id: string
+  revision_id: string
+  source: string
+  output_pdf: string
+  operation: 'extract' | 'delete' | 'reorder' | 'rotate'
+  pages?: number[] | null
+  degrees?: number | null
+  page_count: number
+  created_at: string
+  download_url: string
+}

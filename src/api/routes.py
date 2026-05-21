@@ -2,16 +2,24 @@ from __future__ import annotations
 
 import os
 import re
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
+from pydantic import BaseModel, Field
 
 from src.agent.graph import build_graph, get_cached_state
 from src.agent.state import AgentState
 from src.api.auth import verify_api_key
+from src.pdf.operations import (
+    delete_pages,
+    extract_pages,
+    page_count as pdf_page_count,
+    reorder_pages,
+    rotate_pages,
+)
 from src.schemas.models import DocumentMeta
 from src.storage.backend import get_storage_backend
 from src.storage.task_store import TaskStore
@@ -33,6 +41,13 @@ _PDF_MAGIC = b"%PDF"
 # Safe filename pattern
 _SAFE_FILENAME_RE = re.compile(r"[^\w.\-]")
 _MAX_FILENAME_LEN = 128
+_SAFE_REVISION_RE = re.compile(r"^[a-zA-Z0-9_\-]+$")
+
+
+class PdfOperationRequest(BaseModel):
+    operation: Literal["extract", "delete", "reorder", "rotate"]
+    pages: list[int] | None = Field(default=None)
+    degrees: int = Field(default=90)
 
 
 def _ok(data: Any) -> dict[str, Any]:
@@ -56,6 +71,21 @@ def _sanitize_filename(name: str) -> str:
         suffix = Path(name).suffix[:4]
         name = stem + suffix
     return name or "uploaded.pdf"
+
+
+def _validate_revision_id(revision_id: str) -> None:
+    if not revision_id or not _SAFE_REVISION_RE.match(revision_id):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "ok": False,
+                "data": None,
+                "error": {
+                    "code": "bad_request",
+                    "message": "Invalid revision_id.",
+                },
+            },
+        )
 
 
 def _validate_pdf_bytes(file: UploadFile, first_bytes: bytes) -> None:
@@ -285,6 +315,99 @@ async def get_pdf(_auth: _AuthDep, doc_id: str):
         headers={
             "Content-Disposition": f'inline; filename="{download_name}"',
             # Allow the same-origin SPA to embed this in an <iframe>.
+            "X-Frame-Options": "SAMEORIGIN",
+        },
+    )
+
+
+@router.post("/documents/{doc_id}/pdf/operations")
+async def create_pdf_operation(
+    _auth: _AuthDep,
+    doc_id: str,
+    request: PdfOperationRequest,
+):
+    """Create a derived PDF from page-level operations without changing raw.pdf."""
+    meta = store.load_meta(doc_id)
+    if meta is None:
+        return _err("not_found", "Document not found")
+
+    source_pdf = store.doc_dir(doc_id) / "raw.pdf"
+    if not source_pdf.exists():
+        return _err("not_found", "PDF not found")
+
+    revision_id = new_doc_id()
+    root = store.doc_dir(doc_id).resolve()
+    derived_dir = (root / "derived").resolve()
+    if not str(derived_dir).startswith(str(root)):
+        return _err("bad_request", "Invalid derived artifact path")
+    derived_dir.mkdir(parents=True, exist_ok=True)
+
+    output_pdf = derived_dir / f"{revision_id}.pdf"
+
+    try:
+        pages = request.pages
+        if request.operation in {"extract", "delete", "reorder"} and not pages:
+            return _err("bad_request", f"{request.operation} requires pages")
+
+        if request.operation == "extract":
+            extract_pages(str(source_pdf), pages or [], str(output_pdf))
+        elif request.operation == "delete":
+            delete_pages(str(source_pdf), pages or [], str(output_pdf))
+        elif request.operation == "reorder":
+            reorder_pages(str(source_pdf), pages or [], str(output_pdf))
+        elif request.operation == "rotate":
+            rotate_pages(str(source_pdf), pages, str(output_pdf), degrees=request.degrees)
+    except ValueError as exc:
+        return _err("bad_request", str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "ok": False,
+                "data": None,
+                "error": {"code": "pdf_engine_unavailable", "message": str(exc)},
+            },
+        ) from exc
+
+    manifest = {
+        "doc_id": doc_id,
+        "revision_id": revision_id,
+        "source": "raw.pdf",
+        "output_pdf": f"derived/{revision_id}.pdf",
+        "operation": request.operation,
+        "pages": request.pages,
+        "degrees": request.degrees if request.operation == "rotate" else None,
+        "page_count": pdf_page_count(str(output_pdf)),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    store.save_json(doc_id, f"derived/{revision_id}.json", manifest)
+
+    return _ok(
+        {
+            **manifest,
+            "download_url": f"/v1/documents/{doc_id}/pdf/derived/{revision_id}",
+        }
+    )
+
+
+@router.get("/documents/{doc_id}/pdf/derived/{revision_id}")
+async def get_derived_pdf(_auth: _AuthDep, doc_id: str, revision_id: str):
+    """Stream a derived PDF revision created by a page-level operation."""
+    _validate_revision_id(revision_id)
+    meta = store.load_meta(doc_id)
+    if meta is None:
+        return _err("not_found", "Document not found")
+
+    pdf_path = store.doc_dir(doc_id) / "derived" / f"{revision_id}.pdf"
+    if not pdf_path.exists():
+        return _err("not_found", "Derived PDF not found")
+
+    stem = Path(meta.filename).stem or "document"
+    return FileResponse(
+        path=pdf_path,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{stem}-{revision_id}.pdf"',
             "X-Frame-Options": "SAMEORIGIN",
         },
     )
