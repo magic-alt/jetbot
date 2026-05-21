@@ -40,6 +40,7 @@ This repository implements a financial-report PDF parsing and analysis agent. It
 
 ## Commit & Pull Request Guidelines
 
+- **Always create or switch to a dedicated working branch before making any code changes.** Do not develop directly on `main`, even for small fixes or one-off edits. Use branch names such as `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, or `chore/<topic>`.
 - **Every commit must pass local CI/CD before being pushed.** Run `bash scripts/local_ci.sh` or rely on the git pre-commit hook (`.git/hooks/pre-commit`) which runs lint, type check, and tests automatically. Do not push commits that fail these checks.
 - Use concise, imperative commit messages (e.g., "add validator for balance check").
 - PRs should include: purpose, scope, test commands run, and sample outputs (report JSON/MD) if behavior changes.

@@ -1,6 +1,55 @@
 import axios, { AxiosError, type AxiosInstance } from 'axios'
 
-const baseURL = (import.meta as any).env?.VITE_API_BASE || ''
+interface ApiEnvelope<T> {
+  ok: boolean
+  data: T
+  error?: { message?: string } | null
+}
+
+function resolveApiBaseUrl(): string {
+  const configuredBase = ((import.meta as any).env?.VITE_API_BASE || '').trim()
+  if (configuredBase) {
+    return configuredBase.replace(/\/$/, '')
+  }
+
+  if (typeof window === 'undefined') {
+    return ''
+  }
+
+  const { hostname, protocol, port } = window.location
+  const isLocalDevServer = (hostname === '127.0.0.1' || hostname === 'localhost') && port !== '8000'
+  return isLocalDevServer ? `${protocol}//127.0.0.1:8000` : ''
+}
+
+const baseURL = resolveApiBaseUrl()
+
+export function buildApiUrl(path: string): string {
+  if (/^https?:\/\//.test(path)) {
+    return path
+  }
+  return baseURL ? `${baseURL}${path}` : path
+}
+
+function maybeParseJson(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return value
+  }
+
+  const trimmed = value.trim()
+  if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) {
+    return value
+  }
+
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    return value
+  }
+}
+
+function isApiEnvelope<T>(value: unknown): value is ApiEnvelope<T> {
+  return value !== null && typeof value === 'object' && 'ok' in value && 'data' in value
+}
 
 export const http: AxiosInstance = axios.create({
   baseURL,
@@ -26,8 +75,11 @@ http.interceptors.response.use(
 /** Unwrap the `{ok, data, error}` envelope returned by FastAPI handlers. */
 export async function unwrap<T>(p: Promise<{ data: any }>): Promise<T> {
   const r = await p
-  const body = r.data
-  if (body && typeof body === 'object' && 'ok' in body) {
+  const body = maybeParseJson(r.data)
+  if (typeof body === 'string' && /^\s*<!doctype html|^\s*<html/i.test(body)) {
+    throw new Error('API returned HTML instead of JSON. Check the frontend API base URL or dev proxy configuration.')
+  }
+  if (isApiEnvelope<T>(body)) {
     if (!body.ok) throw new Error(body.error?.message || 'unknown error')
     return body.data as T
   }
