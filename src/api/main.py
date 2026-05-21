@@ -9,6 +9,8 @@ from typing import Any
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from dotenv import load_dotenv
 
@@ -43,7 +45,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Any) -> Response:
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
+        # Allow per-route handlers to opt into SAMEORIGIN (e.g. PDF streamed
+        # into the SPA iframe). Default remains DENY for every other route.
+        response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         return response
@@ -137,3 +141,17 @@ async def prometheus_metrics() -> Response:
         content=metrics.generate_metrics(),
         media_type=metrics.content_type,
     )
+
+
+# ── Optional SPA mount ────────────────────────────────────────────────────
+# When the Vue build output exists, expose it at /ui and redirect / -> /ui.
+# Resolves relative to the repo root so it works in dev and inside the
+# Docker image (which COPYs the dist into /app/web/dist).
+_web_dist_env = os.getenv("WEB_DIST_DIR", "web/dist")
+_web_dist_dir = os.path.abspath(_web_dist_env)
+if os.path.isdir(_web_dist_dir) and os.path.isfile(os.path.join(_web_dist_dir, "index.html")):
+    app.mount("/ui", StaticFiles(directory=_web_dist_dir, html=True), name="ui")
+
+    @app.get("/", include_in_schema=False)
+    async def _root_to_ui() -> RedirectResponse:
+        return RedirectResponse(url="/ui/")
