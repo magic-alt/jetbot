@@ -107,6 +107,30 @@ def test_upload_endpoint_creates_doc_layout(client: TestClient, tmp_path: Path) 
     assert (doc_dir / "meta.json").exists()
 
 
+def test_delete_endpoint_removes_doc_and_task(client: TestClient, tmp_path: Path) -> None:
+    upload = client.post(
+        "/v1/documents",
+        files={"file": ("demo.pdf", b"%PDF-1.4\n%fake upload\n%%EOF\n", "application/pdf")},
+    )
+    doc_id = upload.json()["data"]["doc_id"]
+
+    r = client.delete(f"/v1/documents/{doc_id}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True
+    assert body["data"] == {"doc_id": doc_id, "deleted": True}
+    assert not (tmp_path / "data" / doc_id).exists()
+
+    assert client.get(f"/v1/documents/{doc_id}").status_code == 404
+    listed = client.get("/v1/documents").json()["data"]
+    assert listed["total"] == 0
+
+
+def test_delete_missing_returns_404(client: TestClient) -> None:
+    r = client.delete("/v1/documents/missing-doc")
+    assert r.status_code == 404
+
+
 def test_tables_endpoint(client: TestClient, tmp_path: Path) -> None:
     _make_doc(tmp_path / "data", "abc123")
     r = client.get("/v1/documents/abc123/tables")

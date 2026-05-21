@@ -50,6 +50,13 @@ class TestTaskStore:
             assert task is not None
             assert task["progress"] == i * 10
 
+    def test_delete(self, tmp_path: Path):
+        store = TaskStore(str(tmp_path))
+        store.create("doc-1")
+        assert store.delete("doc-1") is True
+        assert store.get("doc-1") is None
+        assert store.delete("doc-1") is False
+
 
 class TestLocalStorePathTraversal:
     def test_valid_doc_id(self, tmp_path: Path):
@@ -79,3 +86,17 @@ class TestLocalStorePathTraversal:
         store = LocalStore(str(tmp_path))
         with pytest.raises(ValueError, match="Invalid doc_id"):
             store.doc_dir("doc/sub")
+
+    def test_list_metas_and_delete_document(self, tmp_path: Path):
+        from src.schemas.models import DocumentMeta
+
+        store = LocalStore(str(tmp_path))
+        meta = DocumentMeta(doc_id="doc-1", filename="report.pdf")
+        store.save_meta("doc-1", meta)
+        store.save_markdown("doc-1", "report/trader_report.md", "# Report")
+
+        assert [item.doc_id for item in store.list_metas()] == ["doc-1"]
+        assert store.load_markdown("doc-1", "report/trader_report.md") == "# Report"
+        assert store.delete_document("doc-1") is True
+        assert store.load_meta("doc-1") is None
+        assert store.delete_document("doc-1") is False

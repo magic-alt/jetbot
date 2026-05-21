@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Refresh } from '@element-plus/icons-vue'
+import { Delete, Refresh } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { docsApi } from '@/api/docs'
 import type { DocumentListItem } from '@/api/types'
 
@@ -12,6 +13,18 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 const error = ref<string | null>(null)
+const deletingIds = ref<Set<string>>(new Set())
+
+function setDeleting(docId: string, deleting: boolean) {
+  const next = new Set(deletingIds.value)
+  if (deleting) next.add(docId)
+  else next.delete(docId)
+  deletingIds.value = next
+}
+
+function isDeleting(docId: string): boolean {
+  return deletingIds.value.has(docId)
+}
 
 async function load() {
   loading.value = true
@@ -40,7 +53,40 @@ function statusTag(s?: string | null): { type: 'success' | 'warning' | 'info' | 
 }
 
 function go(docId: string) {
+  if (isDeleting(docId)) return
   router.push(`/documents/${docId}`)
+}
+
+async function remove(row: DocumentListItem) {
+  const docId = row.meta.doc_id
+  try {
+    await ElMessageBox.confirm(
+      `确认删除文档“${row.meta.filename || docId}”？删除后将移除分析结果和任务状态。`,
+      '删除文档',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      },
+    )
+  } catch {
+    return
+  }
+
+  setDeleting(docId, true)
+  try {
+    await docsApi.delete(docId)
+    ElMessage.success('文档已删除')
+    if (items.value.length === 1 && page.value > 1) {
+      page.value -= 1
+    }
+    await load()
+  } catch (e: any) {
+    ElMessage.error(e.message || '删除失败')
+  } finally {
+    setDeleting(docId, false)
+  }
 }
 
 function handleCurrentPageUpdate(value: number) {
@@ -59,15 +105,15 @@ onMounted(load)
 
 <template>
   <div>
-    <el-page-header :icon="null" class="page-header">
-      <template #content>
+    <div class="list-header">
+      <div>
         <span class="page-title">文档列表</span>
-      </template>
-      <template #extra>
+      </div>
+      <div class="header-actions">
         <el-button type="primary" @click="$router.push('/upload')">上传新报告</el-button>
         <el-button :icon="Refresh" @click="load">刷新</el-button>
-      </template>
-    </el-page-header>
+      </div>
+    </div>
 
     <el-alert v-if="error" type="error" :title="error" show-icon style="margin-bottom:12px" />
 
@@ -111,9 +157,18 @@ onMounted(load)
             {{ row.meta.created_at?.replace('T', ' ').slice(0, 19) || '—' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column label="操作" width="160" fixed="right">
           <template #default="{ row }: { row: DocumentListItem }">
             <el-button link type="primary" @click.stop="go(row.meta.doc_id)">查看</el-button>
+            <el-button
+              link
+              type="danger"
+              :icon="Delete"
+              :loading="isDeleting(row.meta.doc_id)"
+              @click.stop="remove(row)"
+            >
+              删除
+            </el-button>
           </template>
         </el-table-column>
         <template #empty>
@@ -137,8 +192,9 @@ onMounted(load)
 </template>
 
 <style scoped>
-.page-header { margin-bottom: 16px; }
+.list-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; }
 .page-title { font-size: 18px; font-weight: 600; }
+.header-actions { display: flex; gap: 8px; }
 .pager { display: flex; justify-content: flex-end; margin-top: 12px; }
 :deep(.clickable-row) { cursor: pointer; }
 </style>

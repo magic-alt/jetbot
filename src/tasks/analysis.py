@@ -58,12 +58,12 @@ try:
             """Best-effort partial result persistence on failure."""
             try:
                 from src.agent.graph import get_cached_state
-                from src.storage.local_store import LocalStore
+                from src.storage.backend import get_storage_backend
 
                 partial = get_cached_state(doc_id)
                 if partial is None:
                     return
-                s = LocalStore(partial.data_dir or data_dir)
+                s = get_storage_backend(partial.data_dir or data_dir)
                 if partial.pages:
                     s.save_json(doc_id, "extracted/pages.json", [p.model_dump() for p in partial.pages])
                 if partial.tables:

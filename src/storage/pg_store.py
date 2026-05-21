@@ -9,6 +9,7 @@ local filesystem via *local_fallback_dir*.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +48,14 @@ else:
     ArtifactRecord = None  # type: ignore[assignment,misc]
 
 
+def _sqlalchemy_database_url(database_url: str) -> str:
+    if database_url.startswith("postgresql://"):
+        return database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+    if database_url.startswith("postgres://"):
+        return database_url.replace("postgres://", "postgresql+psycopg://", 1)
+    return database_url
+
+
 class PgStore:
     """PostgreSQL-backed document store.
 
@@ -62,7 +71,7 @@ class PgStore:
 
         if SA_AVAILABLE and database_url:
             try:
-                engine = create_engine(database_url, pool_pre_ping=True)
+                engine = create_engine(_sqlalchemy_database_url(database_url), pool_pre_ping=True)
                 if Base is not None:
                     Base.metadata.create_all(engine)
                 self._session_factory = sessionmaker(bind=engine)
@@ -141,6 +150,56 @@ class PgStore:
             return DocumentMeta.model_validate_json(meta_path.read_text(encoding="utf-8"))
         return None
 
+    def list_metas(self) -> list[DocumentMeta]:
+        metas_by_id: dict[str, DocumentMeta] = {}
+
+        session = self._session()
+        if session is not None and DocumentRecord is not None:
+            try:
+                with session:
+                    for record in session.query(DocumentRecord).all():
+                        if record.meta_json:
+                            meta = DocumentMeta.model_validate_json(record.meta_json)  # type: ignore[arg-type]
+                            metas_by_id[meta.doc_id] = meta
+            except Exception:
+                pass
+
+        if self._local_dir.exists():
+            for entry in self._local_dir.iterdir():
+                if not entry.is_dir() or entry.name in metas_by_id:
+                    continue
+                meta_path = entry / "meta.json"
+                if meta_path.exists():
+                    try:
+                        meta = DocumentMeta.model_validate_json(meta_path.read_text(encoding="utf-8"))
+                    except Exception:
+                        continue
+                    metas_by_id[meta.doc_id] = meta
+
+        return list(metas_by_id.values())
+
+    def delete_document(self, doc_id: str) -> bool:
+        found = self.load_meta(doc_id) is not None
+
+        session = self._session()
+        if session is not None and DocumentRecord is not None and ArtifactRecord is not None:
+            try:
+                with session:
+                    session.query(ArtifactRecord).filter_by(doc_id=doc_id).delete()
+                    record = session.get(DocumentRecord, doc_id)
+                    if record is not None:
+                        session.delete(record)
+                        found = True
+                    session.commit()
+            except Exception as exc:
+                _logger.warning("pg_delete_document_failed", extra={"doc_id": doc_id, "error": str(exc)})
+
+        doc_dir = self._local_dir / doc_id
+        if doc_dir.exists():
+            shutil.rmtree(doc_dir)
+            found = True
+        return found
+
     # -- JSON artifacts (Postgres if available, else local) ------------------
 
     def save_json(self, doc_id: str, relative_path: str, data: Any) -> Path:
@@ -204,3 +263,19 @@ class PgStore:
         full_path.parent.mkdir(parents=True, exist_ok=True)
         full_path.write_text(text, encoding="utf-8")
         return full_path
+
+    def load_markdown(self, doc_id: str, relative_path: str) -> str | None:
+        session = self._session()
+        if session is not None and ArtifactRecord is not None:
+            try:
+                with session:
+                    record = session.get(ArtifactRecord, (doc_id, relative_path))
+                    if record and record.content is not None:
+                        return str(record.content)
+            except Exception:
+                pass
+
+        full_path = self._local_dir / doc_id / relative_path
+        if full_path.exists():
+            return full_path.read_text(encoding="utf-8")
+        return None
