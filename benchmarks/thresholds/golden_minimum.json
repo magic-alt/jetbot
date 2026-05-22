@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "description": "Initial non-regression thresholds for the synthetic golden suite. Tighten these as extraction quality improves.",
+  "min_metrics": {
+    "n_cases": 5,
+    "avg_source_ref_completeness": 1.0,
+    "avg_signal_category_recall": 0.8,
+    "avg_note_type_recall": 0.6,
+    "avg_fact_value_accuracy": 0.08,
+    "avg_fact_source_ref_completeness": 0.34
+  }
+}
