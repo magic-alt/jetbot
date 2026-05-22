@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, ValidationError
 from src.agent.adapters.hermes import get_hermes_agent_client
 from src.agent.context import build_analysis_context as build_analysis_context_payload
 from src.agent.state import AgentState
+from src.finance.facts import facts_from_statements
 from src.finance.normalizer import normalize_account_name
 from src.finance.signals import generate_signals
 from src.finance.utils import table_rows
@@ -557,6 +558,21 @@ def finalize(state: AgentState) -> AgentState:
     store.save_json(state.doc_meta.doc_id, "extracted/pages.json", [p.model_dump() for p in state.pages])
     store.save_json(state.doc_meta.doc_id, "extracted/tables.json", [t.model_dump() for t in state.tables])
     store.save_json(state.doc_meta.doc_id, "extracted/statements.json", {k: v.model_dump() for k, v in state.statements.items()})
+    if not state.facts:
+        state.facts = facts_from_statements(state.doc_meta.doc_id, state.statements)
+    store.save_json(state.doc_meta.doc_id, "extracted/facts.json", [fact.model_dump(mode="json") for fact in state.facts])
+    if state.corrections:
+        store.save_json(
+            state.doc_meta.doc_id,
+            "extracted/corrections.json",
+            [correction.model_dump(mode="json") for correction in state.corrections],
+        )
+    if state.extraction_traces:
+        store.save_json(
+            state.doc_meta.doc_id,
+            "extracted/extraction_traces.json",
+            [trace.model_dump(mode="json") for trace in state.extraction_traces],
+        )
     store.save_json(state.doc_meta.doc_id, "extracted/notes.json", [n.model_dump() for n in state.notes])
     store.save_json(state.doc_meta.doc_id, "extracted/risk_signals.json", [s.model_dump() for s in state.risk_signals])
     if state.analysis_context:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from src.schemas.models import (
+    FinancialFact,
     FinancialStatement,
     KeyNote,
     RiskSignal,
@@ -10,6 +11,8 @@ from src.schemas.models import (
 from src.utils.metrics import (
     balance_equation_pass_rate,
     compute_golden_metrics,
+    fact_source_ref_completeness,
+    fact_value_accuracy,
     note_type_recall,
     signal_category_recall,
     source_ref_completeness,
@@ -166,6 +169,40 @@ class TestSourceRefCompleteness:
     def test_only_signals(self) -> None:
         signals = [RiskSignal(signal_id="s1", category="other", title="t", severity="low", description="d", evidence=[_make_ref()])]
         assert source_ref_completeness([], signals) == 1.0
+
+
+# ---- fact metrics ----
+
+
+def _make_fact(concept: str, value: float | None, refs: list[SourceRef] | None = None) -> FinancialFact:
+    return FinancialFact(
+        fact_id=f"fact-{concept}",
+        doc_id="doc-1",
+        statement_type="income",
+        concept=concept,
+        label=concept,
+        value=value,
+        source_refs=refs or [],
+        confidence=0.8,
+    )
+
+
+class TestFactMetrics:
+    def test_fact_source_ref_completeness(self) -> None:
+        facts = [_make_fact("revenue", 100, [_make_ref()]), _make_fact("net_income", 20)]
+        assert fact_source_ref_completeness(facts) == 0.5
+
+    def test_fact_value_accuracy_supports_statement_qualified_keys(self) -> None:
+        facts = [_make_fact("revenue", 100), _make_fact("net_income", 20)]
+        result = fact_value_accuracy(facts, {"income:revenue": 100, "income:net_income": 22}, tolerance=0.05)
+        assert result["accuracy"] == 0.5
+        assert result["matched"] == ["income:revenue"]
+        assert result["mismatched"][0]["key"] == "income:net_income"
+
+    def test_fact_value_accuracy_missing_value(self) -> None:
+        result = fact_value_accuracy([_make_fact("revenue", None)], {"income:revenue": 100})
+        assert result["accuracy"] == 0.0
+        assert result["missing"] == ["income:revenue"]
 
 
 # ---- signal_category_recall ----

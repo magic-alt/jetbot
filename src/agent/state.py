@@ -8,9 +8,12 @@ from src.schemas.models import (
     AgentRun,
     AnalysisContext,
     Chunk,
+    Correction,
     DeepAnalysisResult,
     DocumentMeta,
     EventStudyResult,
+    ExtractionTrace,
+    FinancialFact,
     FinancialStatement,
     KeyNote,
     Page,
@@ -31,6 +34,9 @@ class AgentState(BaseModel):
     notes: list[KeyNote] = Field(default_factory=list)
     validation_results: dict[str, Any] = Field(default_factory=dict)
     risk_signals: list[RiskSignal] = Field(default_factory=list)
+    facts: list[FinancialFact] = Field(default_factory=list)
+    corrections: list[Correction] = Field(default_factory=list)
+    extraction_traces: list[ExtractionTrace] = Field(default_factory=list)
     analysis_context: AnalysisContext | None = None
     deep_analysis: DeepAnalysisResult | None = None
     agent_runs: list[AgentRun] = Field(default_factory=list)
