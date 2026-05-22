@@ -21,7 +21,7 @@ Jetbot 当前已经具备较完整的财报 PDF Agent MVP 能力：PDF 上传、
 
 首个商业化/试点方向建议锁定为：
 
-**美股 10-K / 10-Q Filing-to-Model Copilot**
+#### 美股 10-K / 10-Q Filing-to-Model Copilot
 
 目标用户：
 
