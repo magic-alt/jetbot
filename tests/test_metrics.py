@@ -174,11 +174,16 @@ class TestSourceRefCompleteness:
 # ---- fact metrics ----
 
 
-def _make_fact(concept: str, value: float | None, refs: list[SourceRef] | None = None) -> FinancialFact:
+def _make_fact(
+    concept: str,
+    value: float | None,
+    refs: list[SourceRef] | None = None,
+    statement_type: str = "income",
+) -> FinancialFact:
     return FinancialFact(
         fact_id=f"fact-{concept}",
         doc_id="doc-1",
-        statement_type="income",
+        statement_type=statement_type,
         concept=concept,
         label=concept,
         value=value,
@@ -203,6 +208,12 @@ class TestFactMetrics:
         result = fact_value_accuracy([_make_fact("revenue", None)], {"income:revenue": 100})
         assert result["accuracy"] == 0.0
         assert result["missing"] == ["income:revenue"]
+
+    def test_fact_value_accuracy_supports_operating_cash_flow_alias(self) -> None:
+        facts = [_make_fact("operating_cf", 55.0, statement_type="cashflow")]
+        result = fact_value_accuracy(facts, {"cashflow:operating_cash_flow": 55.0})
+        assert result["accuracy"] == 1.0
+        assert result["matched"] == ["cashflow:operating_cash_flow"]
 
 
 # ---- signal_category_recall ----

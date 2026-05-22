@@ -1,0 +1,16 @@
+{
+  "pages": [
+    {
+      "page_number": 1,
+      "text": "Consolidated Balance Sheet\nCash and equivalents 50\nTotal Assets 90\nTotal Liabilities 40\nTotal Equity 50\n"
+    },
+    {
+      "page_number": 2,
+      "text": "Consolidated Income Statement\nRevenue 100\nCost of goods sold 60\nGross Profit 40\nOperating expenses 20\nOperating income 20\nNet Income 10\n"
+    },
+    {
+      "page_number": 3,
+      "text": "Notes to Financial Statements\nAccounting Policy: Revenue is recognized over time.\n"
+    }
+  ]
+}

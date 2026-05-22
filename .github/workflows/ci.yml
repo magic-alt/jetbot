@@ -32,13 +32,16 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Lint
-        run: python -m ruff check src tests
+        run: python -m ruff check src tests scripts
 
       - name: Type check
         run: python -m mypy src --ignore-missing-imports
 
       - name: Run tests
         run: python -m pytest -q --timeout=60
+
+      - name: Eval thresholds gate
+        run: python scripts/eval.py --skip-pytest --thresholds benchmarks/thresholds/golden_minimum.json --output-dir data/eval-ci
 
   web-build:
     name: Web UI build
@@ -79,7 +82,6 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     needs: [lint-and-test, web-build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 

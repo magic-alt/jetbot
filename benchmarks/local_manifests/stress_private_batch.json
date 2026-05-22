@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "local-private-stress-v1",
+  "name": "Local Private Stress Batch",
+  "description": "Local-only stress cases for scanned pages, rotated layouts, and complex tables. Raw PDFs remain under ignored paths and are not committed.",
+  "data_policy": {
+    "raw_files_committed": false,
+    "label_policy": "anonymized",
+    "notes": "Place local stress PDFs under benchmarks/private/stress/ before running. Keep detailed operator notes outside git when they contain vendor-specific annotations."
+  },
+  "cases": [
+    {
+      "case_id": "stress-scanned-001",
+      "company": "Stress Scan Co A",
+      "ticker": "SSC",
+      "filing_type": "10-K",
+      "period_end": "2025-12-31",
+      "source": {
+        "type": "pdf",
+        "path": "../private/stress/stress-scanned-001.pdf",
+        "license": "local-private"
+      },
+      "expected_facts": [
+        {"statement_type": "income", "concept": "revenue", "value": 420.0, "currency": "USD", "evidence": [{"page": 18}]},
+        {"statement_type": "income", "concept": "net_income", "value": 22.0, "currency": "USD", "evidence": [{"page": 18}]},
+        {"statement_type": "balance", "concept": "total_assets", "value": 870.0, "currency": "USD", "evidence": [{"page": 15}]},
+        {"statement_type": "balance", "concept": "cash_and_equivalents", "value": 55.0, "currency": "USD", "evidence": [{"page": 15}]},
+        {"statement_type": "cashflow", "concept": "operating_cash_flow", "value": 38.0, "currency": "USD", "evidence": [{"page": 19}]},
+        {"statement_type": "cashflow", "concept": "capex", "value": -27.0, "currency": "USD", "evidence": [{"page": 19}]}
+      ],
+      "expected_notes": ["audit_opinion"],
+      "expected_risk_categories": ["cash_vs_profit"]
+    },
+    {
+      "case_id": "stress-rotated-001",
+      "company": "Stress Rotation Co B",
+      "ticker": "SRB",
+      "filing_type": "10-Q",
+      "period_end": "2026-03-31",
+      "source": {
+        "type": "pdf",
+        "path": "../private/stress/stress-rotated-001.pdf",
+        "license": "local-private"
+      },
+      "expected_facts": [
+        {"statement_type": "income", "concept": "revenue", "value": 310.0, "currency": "USD", "evidence": [{"page": 7}]},
+        {"statement_type": "income", "concept": "gross_profit", "value": 96.0, "currency": "USD", "evidence": [{"page": 7}]},
+        {"statement_type": "income", "concept": "operating_income", "value": 34.0, "currency": "USD", "evidence": [{"page": 7}]},
+        {"statement_type": "balance", "concept": "total_assets", "value": 640.0, "currency": "USD", "evidence": [{"page": 5}]},
+        {"statement_type": "balance", "concept": "total_liabilities", "value": 350.0, "currency": "USD", "evidence": [{"page": 5}]},
+        {"statement_type": "balance", "concept": "total_equity", "value": 290.0, "currency": "USD", "evidence": [{"page": 5}]},
+        {"statement_type": "cashflow", "concept": "operating_cash_flow", "value": 29.0, "currency": "USD", "evidence": [{"page": 8}]}
+      ],
+      "expected_notes": ["other"],
+      "expected_risk_categories": []
+    },
+    {
+      "case_id": "stress-complex-table-001",
+      "company": "Stress Layout Co C",
+      "ticker": "SLC",
+      "filing_type": "10-K",
+      "period_end": "2025-12-31",
+      "source": {
+        "type": "pdf",
+        "path": "../private/stress/stress-complex-table-001.pdf",
+        "license": "local-private"
+      },
+      "expected_facts": [
+        {"statement_type": "income", "concept": "revenue", "value": 760.0, "currency": "USD", "evidence": [{"page": 28}]},
+        {"statement_type": "income", "concept": "gross_profit", "value": 250.0, "currency": "USD", "evidence": [{"page": 28}]},
+        {"statement_type": "income", "concept": "net_income", "value": 84.0, "currency": "USD", "evidence": [{"page": 28}]},
+        {"statement_type": "balance", "concept": "total_assets", "value": 1510.0, "currency": "USD", "evidence": [{"page": 25}]},
+        {"statement_type": "balance", "concept": "total_liabilities", "value": 690.0, "currency": "USD", "evidence": [{"page": 25}]},
+        {"statement_type": "balance", "concept": "total_equity", "value": 820.0, "currency": "USD", "evidence": [{"page": 25}]},
+        {"statement_type": "balance", "concept": "cash_and_equivalents", "value": 118.0, "currency": "USD", "evidence": [{"page": 25}]},
+        {"statement_type": "cashflow", "concept": "operating_cash_flow", "value": 132.0, "currency": "USD", "evidence": [{"page": 29}]},
+        {"statement_type": "cashflow", "concept": "capex", "value": -44.0, "currency": "USD", "evidence": [{"page": 29}]}
+      ],
+      "expected_notes": ["segment", "related_party"],
+      "expected_risk_categories": ["disclosure_inconsistency"]
+    }
+  ]
+}
