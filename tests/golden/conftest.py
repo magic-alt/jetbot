@@ -71,6 +71,13 @@ def golden_cases() -> list[dict]:
                 "income": {"revenue": 2_000_000, "net_income": 200_000},
                 "cashflow": {},
             },
+            "expected_facts": [
+                {"statement_type": "balance", "concept": "cash_and_equivalents", "value": 500_000},
+                {"statement_type": "income", "concept": "gross_profit", "value": 600_000},
+                {"statement_type": "income", "concept": "operating_income", "value": 300_000},
+                {"statement_type": "cashflow", "concept": "operating_cash_flow", "value": 250_000},
+                {"statement_type": "cashflow", "concept": "capex", "value": -100_000},
+            ],
             "expected_note_types": ["other"],
             "expected_signal_categories": [],
         },
@@ -115,6 +122,7 @@ def golden_cases() -> list[dict]:
                     "text": (
                         "III. Consolidated Statement of Cash Flows\n"
                         "Cash flow from operations    180,000    160,000\n"
+                        "Capital expenditures    (60,000)    (50,000)\n"
                         "Cash flow from investing    (60,000)    (50,000)\n"
                         "Cash flow from financing    (30,000)    (20,000)\n"
                         "Net change in cash    90,000    90,000\n"
@@ -137,6 +145,13 @@ def golden_cases() -> list[dict]:
                 "income": {"revenue": 1_200_000, "net_income": 150_000},
                 "cashflow": {},
             },
+            "expected_facts": [
+                {"statement_type": "balance", "concept": "cash_and_equivalents", "value": 300_000},
+                {"statement_type": "income", "concept": "gross_profit", "value": 400_000},
+                {"statement_type": "income", "concept": "operating_income", "value": 200_000},
+                {"statement_type": "cashflow", "concept": "operating_cash_flow", "value": 180_000},
+                {"statement_type": "cashflow", "concept": "capex", "value": -60_000},
+            ],
             "expected_note_types": ["accounting_policy", "related_party", "segment"],
             "expected_signal_categories": [],
         },
@@ -170,6 +185,9 @@ def golden_cases() -> list[dict]:
             "expected_statements": {
                 "income": {"revenue": 500_000, "net_income": 80_000},
             },
+            "expected_facts": [
+                {"statement_type": "income", "concept": "gross_profit", "value": 200_000},
+            ],
             "expected_note_types": ["other"],
             "expected_signal_categories": [],
         },
@@ -219,6 +237,11 @@ def golden_cases() -> list[dict]:
                 "income": {"revenue": 800_000, "net_income": 100_000},
                 "cashflow": {},
             },
+            "expected_facts": [
+                {"statement_type": "balance", "concept": "cash_and_equivalents", "value": 100_000},
+                {"statement_type": "income", "concept": "gross_profit", "value": 200_000},
+                {"statement_type": "cashflow", "concept": "operating_cash_flow", "value": 120_000},
+            ],
             "expected_note_types": ["other"],
             "expected_signal_categories": ["disclosure_inconsistency"],
         },
@@ -285,6 +308,10 @@ def golden_cases() -> list[dict]:
                 "income": {"revenue": 600_000, "net_income": 120_000},
                 "cashflow": {},
             },
+            "expected_facts": [
+                {"statement_type": "income", "concept": "gross_profit", "value": 200_000},
+                {"statement_type": "cashflow", "concept": "operating_cash_flow", "value": -50_000},
+            ],
             "expected_note_types": ["audit_opinion", "contingency", "related_party", "impairment"],
             "expected_signal_categories": ["audit_governance", "cash_vs_profit"],
         },
