@@ -131,6 +131,36 @@ def test_delete_missing_returns_404(client: TestClient) -> None:
     assert r.status_code == 404
 
 
+def test_agent_capabilities_endpoint(client: TestClient) -> None:
+    r = client.get("/v1/agent/capabilities")
+    assert r.status_code == 200
+    data = r.json()["data"]
+    assert any(item["capability_id"] == "deep_analysis" for item in data)
+
+
+def test_deep_analysis_and_agent_runs_endpoints(client: TestClient, tmp_path: Path) -> None:
+    _make_doc(tmp_path / "data", "abc123")
+    extracted = tmp_path / "data" / "abc123" / "extracted"
+    (extracted / "deep_analysis.json").write_text(
+        '{"doc_id":"abc123","provider":"mock","model":"mock","summary":"ok",'
+        '"findings":[],"limitations":[],"invocations":[]}',
+        encoding="utf-8",
+    )
+    (extracted / "agent_runs.json").write_text(
+        '[{"run_id":"run-1","doc_id":"abc123","node_name":"run_deep_analysis",'
+        '"provider":"mock","model":"mock","status":"succeeded"}]',
+        encoding="utf-8",
+    )
+
+    deep = client.get("/v1/documents/abc123/deep-analysis")
+    runs = client.get("/v1/documents/abc123/agent-runs")
+
+    assert deep.status_code == 200
+    assert deep.json()["data"]["summary"] == "ok"
+    assert runs.status_code == 200
+    assert runs.json()["data"][0]["run_id"] == "run-1"
+
+
 def test_tables_endpoint(client: TestClient, tmp_path: Path) -> None:
     _make_doc(tmp_path / "data", "abc123")
     r = client.get("/v1/documents/abc123/tables")

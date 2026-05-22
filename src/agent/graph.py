@@ -6,6 +6,7 @@ import os
 from langgraph.graph import END, StateGraph
 
 from src.agent.nodes import (
+    build_analysis_context_node,
     build_trader_report,
     detect_sections_and_chunk,
     extract_financial_statements,
@@ -14,6 +15,7 @@ from src.agent.nodes import (
     finalize,
     generate_risk_signals,
     ingest_pdf,
+    run_deep_analysis,
     run_event_study_node,
     validate_and_reconcile,
 )
@@ -39,6 +41,8 @@ def build_graph():
     graph.add_node("validate_and_reconcile", _wrap(validate_and_reconcile))
     graph.add_node("extract_key_notes", _wrap(extract_key_notes))
     graph.add_node("generate_risk_signals", _wrap(generate_risk_signals))
+    graph.add_node("build_analysis_context", _wrap(build_analysis_context_node))
+    graph.add_node("run_deep_analysis", _wrap(run_deep_analysis))
     graph.add_node("build_trader_report", _wrap(build_trader_report))
     graph.add_node("run_event_study_node", _wrap(run_event_study_node))
     graph.add_node("finalize", _wrap(finalize, cleanup_cache=True))
@@ -56,7 +60,9 @@ def build_graph():
     )
 
     graph.add_edge("extract_key_notes", "generate_risk_signals")
-    graph.add_edge("generate_risk_signals", "build_trader_report")
+    graph.add_edge("generate_risk_signals", "build_analysis_context")
+    graph.add_edge("build_analysis_context", "run_deep_analysis")
+    graph.add_edge("run_deep_analysis", "build_trader_report")
     graph.add_edge("build_trader_report", "run_event_study_node")
     graph.add_edge("run_event_study_node", "finalize")
     graph.add_edge("finalize", END)

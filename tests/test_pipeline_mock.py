@@ -20,4 +20,10 @@ def test_pipeline_with_fake_pages(tmp_path: Path):
     graph.invoke(state.model_dump())
 
     report_path = tmp_path / "test-doc" / "report" / "trader_report.md"
+    context_path = tmp_path / "test-doc" / "extracted" / "analysis_context.json"
+    deep_analysis_path = tmp_path / "test-doc" / "extracted" / "deep_analysis.json"
+    agent_runs_path = tmp_path / "test-doc" / "extracted" / "agent_runs.json"
     assert report_path.exists()
+    assert context_path.exists()
+    assert deep_analysis_path.exists()
+    assert agent_runs_path.exists()

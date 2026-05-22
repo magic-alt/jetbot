@@ -10,6 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
+from src.agent.capabilities import get_agent_capabilities
 from src.agent.graph import build_graph, get_cached_state
 from src.agent.state import AgentState
 from src.api.auth import verify_api_key
@@ -168,6 +169,11 @@ async def create_document(
     return _ok({"doc_id": doc_id, "status": "queued"})
 
 
+@router.get("/agent/capabilities")
+async def list_agent_capabilities(_auth: _AuthDep):
+    return _ok([capability.model_dump() for capability in get_agent_capabilities()])
+
+
 @router.post("/documents/{doc_id}/analyze")
 async def analyze_document(
     _auth: _AuthDep,
@@ -239,6 +245,22 @@ async def get_risk_signals(_auth: _AuthDep, doc_id: str):
     data = store.load_json(doc_id, "extracted/risk_signals.json")
     if data is None:
         return _err("not_found", "Risk signals not found")
+    return _ok(data)
+
+
+@router.get("/documents/{doc_id}/deep-analysis")
+async def get_deep_analysis(_auth: _AuthDep, doc_id: str):
+    data = store.load_json(doc_id, "extracted/deep_analysis.json")
+    if data is None:
+        return _err("not_found", "Deep analysis not found")
+    return _ok(data)
+
+
+@router.get("/documents/{doc_id}/agent-runs")
+async def get_agent_runs(_auth: _AuthDep, doc_id: str):
+    data = store.load_json(doc_id, "extracted/agent_runs.json")
+    if data is None:
+        return _err("not_found", "Agent runs not found")
     return _ok(data)
 
 
@@ -442,5 +464,11 @@ def _save_partial_results(doc_id: str) -> None:
             s.save_json(doc_id, "extracted/notes.json", [n.model_dump() for n in partial.notes])
         if partial.risk_signals:
             s.save_json(doc_id, "extracted/risk_signals.json", [sig.model_dump() for sig in partial.risk_signals])
+        if partial.analysis_context:
+            s.save_json(doc_id, "extracted/analysis_context.json", partial.analysis_context.model_dump(mode="json"))
+        if partial.deep_analysis:
+            s.save_json(doc_id, "extracted/deep_analysis.json", partial.deep_analysis.model_dump(mode="json"))
+        if partial.agent_runs:
+            s.save_json(doc_id, "extracted/agent_runs.json", [run.model_dump(mode="json") for run in partial.agent_runs])
     except Exception:
         pass
