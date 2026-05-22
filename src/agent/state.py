@@ -13,6 +13,7 @@ from src.schemas.models import (
     DocumentMeta,
     EventStudyResult,
     ExtractionTrace,
+    FactValidationResult,
     FinancialFact,
     FinancialStatement,
     KeyNote,
@@ -33,6 +34,7 @@ class AgentState(BaseModel):
     statements: dict[str, FinancialStatement] = Field(default_factory=dict)
     notes: list[KeyNote] = Field(default_factory=list)
     validation_results: dict[str, Any] = Field(default_factory=dict)
+    fact_validation_results: FactValidationResult | None = None
     risk_signals: list[RiskSignal] = Field(default_factory=list)
     facts: list[FinancialFact] = Field(default_factory=list)
     corrections: list[Correction] = Field(default_factory=list)
