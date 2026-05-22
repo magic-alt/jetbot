@@ -17,9 +17,8 @@ def _env_flag(name: str, default: bool = True) -> bool:
 
 
 def main() -> int:
-    port = os.getenv("JETBOT_API_PORT", "8000")
-    health_url = os.getenv("JETBOT_HEALTHCHECK_URL", f"http://127.0.0.1:{port}/health")
-    ui_url = os.getenv("JETBOT_UI_URL", f"http://127.0.0.1:{port}/ui/")
+    health_url = os.getenv("JETBOT_HEALTHCHECK_URL", "http://127.0.0.1:18000/health")
+    ui_url = os.getenv("JETBOT_UI_URL", "http://127.0.0.1:18000/ui/")
     timeout_seconds = float(os.getenv("JETBOT_UI_OPEN_TIMEOUT", "90"))
     open_browser = _env_flag("JETBOT_OPEN_BROWSER", default=True)
 

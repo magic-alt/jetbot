@@ -14,6 +14,7 @@ from src.agent.capabilities import get_agent_capabilities
 from src.agent.graph import build_graph, get_cached_state
 from src.agent.state import AgentState
 from src.api.auth import verify_api_key
+from src.pdf.engine import get_pdf_engine
 from src.pdf.operations import (
     delete_pages,
     extract_pages,
@@ -24,6 +25,7 @@ from src.pdf.operations import (
 from src.schemas.models import DocumentMeta
 from src.storage.backend import get_storage_backend
 from src.storage.task_store import TaskStore
+from src.utils.document_metadata import enrich_document_meta
 from src.utils.ids import new_doc_id
 from src.utils.logging import get_logger
 
@@ -118,12 +120,24 @@ def _validate_pdf_bytes(file: UploadFile, first_bytes: bytes) -> None:
         )
 
 
+def _load_enriched_meta(doc_id: str) -> DocumentMeta | None:
+    meta = store.load_meta(doc_id)
+    if meta is None:
+        return None
+    pages = store.load_json(doc_id, "extracted/pages.json") or []
+    enriched = enrich_document_meta(meta, pages)
+    if enriched != meta:
+        store.save_meta(doc_id, enriched)
+    return enriched
+
+
 _AuthDep = Annotated[None, Depends(verify_api_key)]
 
 
 @router.post("/documents")
 async def create_document(
     _auth: _AuthDep,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     company: str | None = Form(default=None),
     period_end: str | None = Form(default=None),
@@ -166,7 +180,7 @@ async def create_document(
     )
     store.save_meta(doc_id, meta)
     task_store.create(doc_id)
-    return _ok({"doc_id": doc_id, "status": "queued"})
+    return _ok(_start_analysis(meta, raw_path, background_tasks))
 
 
 @router.get("/agent/capabilities")
@@ -187,21 +201,41 @@ async def analyze_document(
     if not pdf_path.exists():
         return _err("not_found", "PDF not found")
 
+    return _ok(_start_analysis(meta, pdf_path, background_tasks))
+
+
+def _start_analysis(meta: DocumentMeta, pdf_path: Path, background_tasks: BackgroundTasks) -> dict[str, Any]:
+    current = task_store.get(meta.doc_id)
+    if current is None:
+        current = task_store.create(meta.doc_id)
+    elif current["status"] == "running":
+        return current
+
     from src.tasks import is_celery_backend
 
-    if is_celery_backend():
-        from src.tasks.analysis import run_analysis
+    try:
+        if is_celery_backend():
+            from src.tasks.analysis import run_analysis
 
-        run_analysis.delay(doc_id, str(pdf_path), meta.model_dump(mode="json"))
-    else:
-        background_tasks.add_task(_run_analysis, meta, str(pdf_path))
-    task_store.update(doc_id, status="running", progress=5)
-    return _ok(task_store.get(doc_id))
+            run_analysis.delay(meta.doc_id, str(pdf_path), meta.model_dump(mode="json"))
+        else:
+            background_tasks.add_task(_run_analysis, meta, str(pdf_path))
+    except Exception as exc:
+        task_store.update(meta.doc_id, status="failed", progress=100, current_node=None, error_message=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "ok": False,
+                "data": None,
+                "error": {"code": "analysis_start_failed", "message": f"Unable to start analysis: {exc}"},
+            },
+        ) from exc
+    return task_store.update(meta.doc_id, status="running", progress=5, current_node=None, error_message=None)
 
 
 @router.get("/documents/{doc_id}")
 async def get_document(_auth: _AuthDep, doc_id: str):
-    meta = store.load_meta(doc_id)
+    meta = _load_enriched_meta(doc_id)
     task = task_store.get(doc_id)
     if not meta or not task:
         return _err("not_found", "Document not found")
@@ -277,6 +311,7 @@ async def list_documents(
 
     items: list[dict[str, Any]] = []
     for meta in store.list_metas():
+        meta = _load_enriched_meta(meta.doc_id) or meta
         task = task_store.get(meta.doc_id)
         items.append(
             {
@@ -320,9 +355,36 @@ async def get_pages(_auth: _AuthDep, doc_id: str):
     return _ok(data)
 
 
+@router.get("/documents/{doc_id}/pages/{page_number}/image")
+async def get_page_image(_auth: _AuthDep, doc_id: str, page_number: int):
+    meta = store.load_meta(doc_id)
+    if meta is None:
+        return _err("not_found", "Document not found")
+    if page_number < 1:
+        return _err("bad_request", "page_number must be >= 1")
+    pdf_path = store.doc_dir(doc_id) / "raw.pdf"
+    if not pdf_path.exists():
+        return _err("not_found", "PDF not found")
+    preview_dir = store.ensure_layout(doc_id)["pages"] / "pdfium_preview"
+    try:
+        image_path = get_pdf_engine("pdfium").render_page(str(pdf_path), page_number, str(preview_dir), dpi=144)
+    except ValueError as exc:
+        return _err("bad_request", str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "ok": False,
+                "data": None,
+                "error": {"code": "pdfium_unavailable", "message": str(exc)},
+            },
+        ) from exc
+    return FileResponse(image_path, media_type="image/png", headers={"X-PDF-Engine": "pdfium"})
+
+
 @router.get("/documents/{doc_id}/pdf")
 async def get_pdf(_auth: _AuthDep, doc_id: str):
-    """Stream the original uploaded PDF so the SPA can preview it in an iframe."""
+    """Stream the original uploaded PDF for direct links and downloads."""
     meta = store.load_meta(doc_id)
     if meta is None:
         return _err("not_found", "Document not found")

@@ -244,6 +244,21 @@ class AnalysisFinding(BaseModel):
     evidence: list[SourceRef] = Field(default_factory=list)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
 
+    @field_validator("evidence", mode="before")
+    @classmethod
+    def _drop_invalid_evidence(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            return value
+        filtered: list[Any] = []
+        for item in value:
+            if isinstance(item, SourceRef):
+                filtered.append(item)
+            elif isinstance(item, dict) and item.get("page") is not None:
+                filtered.append(item)
+        return filtered
+
 
 class DeepAnalysisResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
