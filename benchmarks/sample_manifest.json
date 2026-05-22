@@ -17,10 +17,46 @@
       "period_end": "2025-12-31",
       "source": {
         "type": "synthetic",
-        "path": "tests/golden/conftest.py",
+        "path": "fixtures/synthetic_income_001.json",
         "license": "synthetic"
       },
       "expected_facts": [
+        {
+          "statement_type": "balance",
+          "concept": "total_assets",
+          "label": "Total Assets",
+          "value": 90.0,
+          "unit": "USD millions",
+          "currency": "USD",
+          "period_end": "2025-12-31",
+          "evidence": [
+            {"page": 1, "quote": "Total Assets 90"}
+          ]
+        },
+        {
+          "statement_type": "balance",
+          "concept": "total_liabilities",
+          "label": "Total Liabilities",
+          "value": 40.0,
+          "unit": "USD millions",
+          "currency": "USD",
+          "period_end": "2025-12-31",
+          "evidence": [
+            {"page": 1, "quote": "Total Liabilities 40"}
+          ]
+        },
+        {
+          "statement_type": "balance",
+          "concept": "total_equity",
+          "label": "Total Equity",
+          "value": 50.0,
+          "unit": "USD millions",
+          "currency": "USD",
+          "period_end": "2025-12-31",
+          "evidence": [
+            {"page": 1, "quote": "Total Equity 50"}
+          ]
+        },
         {
           "statement_type": "income",
           "concept": "revenue",
@@ -32,9 +68,45 @@
           "evidence": [
             {"page": 1, "quote": "Revenue 100"}
           ]
+        },
+        {
+          "statement_type": "income",
+          "concept": "gross_profit",
+          "label": "Gross Profit",
+          "value": 40.0,
+          "unit": "USD millions",
+          "currency": "USD",
+          "period_end": "2025-12-31",
+          "evidence": [
+            {"page": 2, "quote": "Gross Profit 40"}
+          ]
+        },
+        {
+          "statement_type": "income",
+          "concept": "operating_income",
+          "label": "Operating income",
+          "value": 20.0,
+          "unit": "USD millions",
+          "currency": "USD",
+          "period_end": "2025-12-31",
+          "evidence": [
+            {"page": 2, "quote": "Operating income 20"}
+          ]
+        },
+        {
+          "statement_type": "income",
+          "concept": "net_income",
+          "label": "Net Income",
+          "value": 10.0,
+          "unit": "USD millions",
+          "currency": "USD",
+          "period_end": "2025-12-31",
+          "evidence": [
+            {"page": 2, "quote": "Net Income 10"}
+          ]
         }
       ],
-      "expected_notes": ["other"],
+      "expected_notes": ["accounting_policy"],
       "expected_risk_categories": []
     }
   ]

@@ -33,6 +33,12 @@ class TestNormalizeAccountName:
     def test_chinese_operating_cf(self):
         assert normalize_account_name("经营活动产生的现金流量净额") == "operating_cf"
 
+    def test_cash_and_equivalents_alias(self):
+        assert normalize_account_name("Cash and cash equivalents") == "cash_and_equivalents"
+
+    def test_capex_alias(self):
+        assert normalize_account_name("Capital expenditures") == "capex"
+
     def test_unmapped_returns_original(self):
         assert normalize_account_name("未知科目") == "未知科目"
 
