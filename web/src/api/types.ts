@@ -33,9 +33,14 @@ export interface FinancialStatements {
 export interface FinancialFact {
   fact_id: string
   doc_id: string
+  company?: string | null
+  ticker?: string | null
+  cik?: string | null
+  filing_type?: string | null
   statement_type: 'income' | 'balance' | 'cashflow' | 'note' | 'other' | string
   concept: string
   label: string
+  raw_label?: string | null
   value?: number | null
   unit?: string | null
   scale?: number | null
@@ -47,6 +52,22 @@ export interface FinancialFact {
   confidence: number
   extraction_engine?: string | null
   metadata?: Record<string, unknown>
+}
+
+export interface FactValidationIssue {
+  code: string
+  severity: 'low' | 'medium' | 'high' | string
+  message: string
+  fact_ids?: string[]
+  concepts?: string[]
+  statement_type?: string | null
+  metadata?: Record<string, unknown>
+}
+
+export interface FactValidationResult {
+  issues: FactValidationIssue[]
+  checks: Record<string, boolean | number | string>
+  metrics: Record<string, number | string>
 }
 
 export interface RiskSignal {
@@ -69,6 +90,9 @@ export interface DocumentMeta {
   doc_id: string
   filename: string
   company?: string | null
+  ticker?: string | null
+  cik?: string | null
+  filing_type?: string | null
   period_end?: string | null
   report_type?: string | null
   language?: string | null

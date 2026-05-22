@@ -38,6 +38,9 @@ class DocumentMeta(BaseModel):
     doc_id: str
     filename: str
     company: str | None = None
+    ticker: str | None = None
+    cik: str | None = None
+    filing_type: str | None = None
     period_end: date | None = None
     report_type: str | None = None
     language: str | None = None
@@ -120,9 +123,14 @@ class FinancialFact(BaseModel):
 
     fact_id: str
     doc_id: str
+    company: str | None = None
+    ticker: str | None = None
+    cik: str | None = None
+    filing_type: str | None = None
     statement_type: Literal["income", "balance", "cashflow", "note", "other"]
     concept: str
     label: str
+    raw_label: str | None = None
     value: float | None = None
     unit: str | None = None
     scale: float | None = None
@@ -165,6 +173,26 @@ class Correction(BaseModel):
     reason: str | None = None
     source_refs: list[SourceRef] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=_utc_now)
+
+
+class FactValidationIssue(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    severity: Literal["low", "medium", "high"] = "medium"
+    message: str
+    fact_ids: list[str] = Field(default_factory=list)
+    concepts: list[str] = Field(default_factory=list)
+    statement_type: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class FactValidationResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    issues: list[FactValidationIssue] = Field(default_factory=list)
+    checks: dict[str, bool | float | int | str] = Field(default_factory=dict)
+    metrics: dict[str, float | int | str] = Field(default_factory=dict)
 
 
 class KeyNote(BaseModel):

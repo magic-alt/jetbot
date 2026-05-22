@@ -9,6 +9,7 @@ import type {
   ExtractedTable,
   FinancialFact,
   FinancialStatements,
+  FactValidationResult,
   KeyNote,
   MetricItem,
   PdfOperationResult,
@@ -184,6 +185,9 @@ export const docsApi = {
   },
   facts(docId: string) {
     return unwrap<FinancialFact[]>(http.get(`/v1/documents/${docId}/facts`))
+  },
+  factValidation(docId: string) {
+    return unwrap<FactValidationResult>(http.get(`/v1/documents/${docId}/fact-validation`))
   },
   riskSignals(docId: string) {
     return unwrap<any>(http.get(`/v1/documents/${docId}/risk-signals`)).then(normalizeSignals)

@@ -255,9 +255,47 @@ def test_facts_endpoint(client: TestClient, tmp_path: Path) -> None:
     assert body["data"][0]["concept"] == "revenue"
 
 
+def test_fact_validation_endpoint(client: TestClient, tmp_path: Path) -> None:
+    _make_doc(tmp_path / "data", "abc123")
+    validation_path = tmp_path / "data" / "abc123" / "extracted" / "fact_validation.json"
+    validation_path.write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "code": "missing_critical_facts",
+                        "severity": "high",
+                        "message": "Missing critical facts for income: gross_profit.",
+                        "fact_ids": [],
+                        "concepts": ["gross_profit"],
+                        "statement_type": "income",
+                        "metadata": {},
+                    }
+                ],
+                "checks": {"missing_critical_facts": False},
+                "metrics": {"missing_critical_fact_count": 1},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    r = client.get("/v1/documents/abc123/fact-validation")
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True
+    assert body["data"]["issues"][0]["code"] == "missing_critical_facts"
+
+
 def test_facts_missing_returns_404(client: TestClient, tmp_path: Path) -> None:
     _make_doc(tmp_path / "data", "abc123")
     r = client.get("/v1/documents/abc123/facts")
+    assert r.status_code == 404
+
+
+def test_fact_validation_missing_returns_404(client: TestClient, tmp_path: Path) -> None:
+    _make_doc(tmp_path / "data", "abc123")
+    r = client.get("/v1/documents/abc123/fact-validation")
     assert r.status_code == 404
 
 
