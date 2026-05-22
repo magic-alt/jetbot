@@ -86,7 +86,7 @@ def _build_client(provider: str, model: str) -> LLMClient:
         else:
             from src.llm.openai_client import OpenAILLMClient
 
-            client = OpenAILLMClient(api_key=api_key or "ollama", model=model, base_url=base_url)
+            client = OpenAILLMClient(api_key=api_key or "ollama", model=model, base_url=base_url, provider=provider)
     else:
         # "mock" or unknown provider
         client = MockLLMClient()

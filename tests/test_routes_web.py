@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -89,7 +90,62 @@ def test_list_pagination(client: TestClient, tmp_path: Path) -> None:
     assert len(data["items"]) == 2
 
 
-def test_upload_endpoint_creates_doc_layout(client: TestClient, tmp_path: Path) -> None:
+def test_list_enriches_missing_metadata_from_pages(client: TestClient, tmp_path: Path) -> None:
+    base = tmp_path / "data"
+    _make_doc(base, "abc123")
+    meta_path = base / "abc123" / "meta.json"
+    meta_path.write_text(
+        json.dumps(
+            {
+                "doc_id": "abc123",
+                "filename": "FY24_Q4_Consolidated_Financial_Statements.pdf",
+                "company": None,
+                "period_end": None,
+                "report_type": None,
+                "language": None,
+                "created_at": "2026-05-21T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (base / "abc123" / "extracted" / "pages.json").write_text(
+        json.dumps(
+            [
+                {
+                    "page_number": 1,
+                    "text": "Apple Inc.\nCONDENSED CONSOLIDATED STATEMENTS OF OPERATIONS\nSeptember 28,\n2024",
+                    "images": [],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    r = client.get("/v1/documents")
+
+    assert r.status_code == 200
+    meta = r.json()["data"]["items"][0]["meta"]
+    assert meta["company"] == "Apple Inc."
+    assert meta["report_type"] == "Condensed Consolidated Financial Statements"
+    assert meta["period_end"] == "2024-09-28"
+    saved = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert saved["company"] == "Apple Inc."
+
+
+def test_upload_endpoint_creates_doc_layout(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.api.routes as routes_mod
+
+    def fake_start_analysis(meta: object, pdf_path: Path, background_tasks: object) -> dict[str, object]:
+        return {
+            "doc_id": getattr(meta, "doc_id"),
+            "status": "running",
+            "progress": 5,
+            "current_node": None,
+            "error_message": None,
+        }
+
+    monkeypatch.setattr(routes_mod, "_start_analysis", fake_start_analysis)
+
     r = client.post(
         "/v1/documents",
         files={"file": ("demo.pdf", b"%PDF-1.4\n%fake upload\n%%EOF\n", "application/pdf")},
@@ -99,7 +155,7 @@ def test_upload_endpoint_creates_doc_layout(client: TestClient, tmp_path: Path) 
     assert r.status_code == 200
     body = r.json()
     assert body["ok"] is True
-    assert body["data"]["status"] == "queued"
+    assert body["data"]["status"] == "running"
 
     doc_id = body["data"]["doc_id"]
     doc_dir = tmp_path / "data" / doc_id
@@ -184,6 +240,28 @@ def test_pdf_endpoint_streams_bytes(client: TestClient, tmp_path: Path) -> None:
     assert r.headers.get("x-frame-options") == "SAMEORIGIN"
     assert "inline" in r.headers["content-disposition"]
     assert r.content.startswith(b"%PDF")
+
+
+def test_pdf_page_image_endpoint_renders_with_pdfium(client: TestClient, tmp_path: Path) -> None:
+    pytest.importorskip("pypdfium2")
+    fitz = pytest.importorskip("fitz")
+
+    base = tmp_path / "data"
+    _make_doc(base, "abc123")
+    raw_pdf = base / "abc123" / "raw.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=300, height=240)
+    page.insert_text((36, 72), "page one", fontsize=12)
+    doc.save(str(raw_pdf))
+    doc.close()
+
+    r = client.get("/v1/documents/abc123/pages/1/image")
+
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/png"
+    assert r.headers["x-pdf-engine"] == "pdfium"
+    assert r.content.startswith(b"\x89PNG")
+    assert (base / "abc123" / "pages" / "pdfium_preview" / "page_0001.png").exists()
 
 
 def test_pdf_missing_returns_404(client: TestClient, tmp_path: Path) -> None:

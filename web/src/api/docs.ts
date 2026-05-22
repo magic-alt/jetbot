@@ -5,6 +5,7 @@ import type {
   AgentRun,
   AnalysisFinding,
   DeepAnalysisResult,
+  ExtractedPage,
   ExtractedTable,
   FinancialStatements,
   KeyNote,
@@ -192,6 +193,9 @@ export const docsApi = {
   tables(docId: string) {
     return unwrap<any>(http.get(`/v1/documents/${docId}/tables`)).then(normalizeTables)
   },
+  pages(docId: string) {
+    return unwrap<ExtractedPage[]>(http.get(`/v1/documents/${docId}/pages`))
+  },
   deepAnalysis(docId: string) {
     return unwrap<any>(http.get(`/v1/documents/${docId}/deep-analysis`)).then(normalizeDeepAnalysis)
   },
@@ -203,6 +207,11 @@ export const docsApi = {
   },
   pdfBlob(docId: string) {
     return http.get(`/v1/documents/${docId}/pdf`, { responseType: 'blob' }).then((r) => r.data as Blob)
+  },
+  pageImageBlob(docId: string, page: number) {
+    return http
+      .get(`/v1/documents/${docId}/pages/${page}/image`, { responseType: 'blob' })
+      .then((r) => r.data as Blob)
   },
   pdfUrl(docId: string) {
     // Keep the raw route available for explicit downloads or direct linking.

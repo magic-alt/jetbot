@@ -27,6 +27,20 @@ class TestTaskStore:
         assert task["status"] == "running"
         assert task["progress"] == 50
 
+    def test_get_sees_updates_from_another_store(self, tmp_path: Path):
+        api_store = TaskStore(str(tmp_path))
+        worker_store = TaskStore(str(tmp_path))
+        api_store.create("doc-1")
+        api_store.update("doc-1", status="running", progress=10)
+
+        assert api_store.get("doc-1") is not None
+        worker_store.update("doc-1", status="succeeded", progress=100)
+
+        task = api_store.get("doc-1")
+        assert task is not None
+        assert task["status"] == "succeeded"
+        assert task["progress"] == 100
+
     def test_update_error_message(self, tmp_path: Path):
         store = TaskStore(str(tmp_path))
         store.create("doc-1")

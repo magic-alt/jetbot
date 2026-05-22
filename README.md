@@ -64,7 +64,7 @@ make docker-up
 - builds the backend image with the Vue production bundle included
 - starts the API, worker, Redis, PostgreSQL, and MinIO services
 - waits until the API health endpoint is ready
-- opens the frontend automatically at `http://127.0.0.1:8000/ui/`
+- opens the frontend automatically at `http://127.0.0.1:18000/ui/`
 
 Set `JETBOT_OPEN_BROWSER=0` if you want to skip the automatic browser launch.
 
@@ -80,11 +80,11 @@ After startup, the main entry points are:
 
 | Surface | URL / Command | Notes |
 | --- | --- | --- |
-| Web UI | `http://127.0.0.1:8000/ui/` | Review uploaded PDFs, tables, statements, signals, and generated reports |
-| API | `http://127.0.0.1:8000/v1` | Programmatic ingestion and retrieval |
-| OpenAPI docs | `http://127.0.0.1:8000/docs` | Interactive API explorer |
-| Health | `http://127.0.0.1:8000/health` | Liveness probe |
-| Metrics | `http://127.0.0.1:8000/metrics` | Prometheus endpoint |
+| Web UI | `http://127.0.0.1:18000/ui/` | Review uploaded PDFs, tables, statements, signals, and generated reports |
+| API | `http://127.0.0.1:18000/v1` | Programmatic ingestion and retrieval |
+| OpenAPI docs | `http://127.0.0.1:18000/docs` | Interactive API explorer |
+| Health | `http://127.0.0.1:18000/health` | Liveness probe |
+| Metrics | `http://127.0.0.1:18000/metrics` | Prometheus endpoint |
 | CLI | `python -m src.cli --help` | Local automation and scripting |
 
 ## Common Workflows
@@ -106,11 +106,11 @@ python examples/real_pdf_analysis/run_example.py
 ```bash
 curl -F "file=@path/to/report.pdf" \
   -H "X-API-Key: your-key" \
-  http://127.0.0.1:8000/v1/documents
+  http://127.0.0.1:18000/v1/documents
 
 curl -X POST \
   -H "X-API-Key: your-key" \
-  http://127.0.0.1:8000/v1/documents/<doc_id>/analyze
+  http://127.0.0.1:18000/v1/documents/<doc_id>/analyze
 ```
 
 ## Configuration
@@ -128,9 +128,10 @@ Jetbot starts in mock mode if no provider key is configured. Most teams only nee
 | `TASK_BACKEND` | `background` or `celery` | `background` |
 | `STORAGE_BACKEND` | `local` or `postgres` | `local` |
 | `API_KEYS` | Comma-separated API keys; blank disables auth | empty |
-| `JETBOT_API_PORT` | Host port for the Dockerized API/UI | `8000` |
 
-See `.env.example` for the full configuration surface, including tracing, storage, port overrides, rate limiting, and market-data settings.
+Docker host ports are fixed to `18000` (API/UI), `16379` (Redis), `15432` (PostgreSQL), `19000` (MinIO), and `19001` (MinIO Console), so app-level `.env` settings cannot remap them accidentally.
+
+See `.env.example` for the full configuration surface, including tracing, storage, rate limiting, and market-data settings.
 
 ## Optional Capability Packs
 

@@ -34,6 +34,7 @@ from src.schemas.models import (
 )
 from src.storage.backend import StorageBackend, get_storage_backend
 from src.storage.vector_index import build_rag_index
+from src.utils.document_metadata import enrich_document_meta
 from src.utils.ids import new_doc_id
 from src.utils.logging import get_logger, log_node
 from src.utils.time import monotonic_ms
@@ -551,6 +552,7 @@ def finalize(state: AgentState) -> AgentState:
     state.debug.pop("_rag_index", None)
 
     store = get_storage_backend(state.data_dir or "data")
+    state.doc_meta = enrich_document_meta(state.doc_meta, state.pages)
     store.save_meta(state.doc_meta.doc_id, state.doc_meta)
     store.save_json(state.doc_meta.doc_id, "extracted/pages.json", [p.model_dump() for p in state.pages])
     store.save_json(state.doc_meta.doc_id, "extracted/tables.json", [t.model_dump() for t in state.tables])

@@ -32,13 +32,14 @@ except Exception:  # pragma: no cover - optional dependency
 
 
 class OpenAILLMClient:
-    def __init__(self, api_key: str, model: str, *, base_url: str | None = None) -> None:
+    def __init__(self, api_key: str, model: str, *, base_url: str | None = None, provider: str = "openai") -> None:
         _timeout = int(os.getenv("LLM_TIMEOUT_S", "60"))
         client_kwargs: dict[str, Any] = {"api_key": api_key, "timeout": float(_timeout)}
         if base_url:
             client_kwargs["base_url"] = base_url
         self._client = OpenAI(**client_kwargs)
         self._model = model
+        self._provider = provider.lower()
         self._chat_model = None
         if LANGCHAIN_AVAILABLE and ChatOpenAI is not None:
             chat_kwargs: dict[str, Any] = {
@@ -63,6 +64,9 @@ class OpenAILLMClient:
             chain = prompt | self._chat_model
             message = await chain.ainvoke({"system_message": system, "user_message": user})
             return _message_to_text(message)
+        if json_schema and not self._supports_native_structured_output():
+            user = _with_json_instructions(user, json_schema)
+            json_schema = None
         return await asyncio.to_thread(self._chat_sync, system, user, json_schema)
 
     def _chat_sync(self, system: str, user: str, json_schema: dict | None) -> str:
@@ -70,6 +74,9 @@ class OpenAILLMClient:
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ]
+        if self._provider in {"deepseek", "ollama"}:
+            completion = self._client.chat.completions.create(model=self._model, messages=messages)  # type: ignore[arg-type]
+            return completion.choices[0].message.content or "{}"
         if json_schema:
             try:
                 response = self._client.responses.create(  # type: ignore[call-overload]
@@ -96,24 +103,29 @@ class OpenAILLMClient:
         tags: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Any:
-        if self._chat_model is not None and ChatPromptTemplate is not None:
+        if self._supports_native_structured_output() and self._chat_model is not None and ChatPromptTemplate is not None:
             prompt = ChatPromptTemplate.from_messages(
                 [
                     ("system", request.system_template),
                     ("human", request.user_template),
                 ]
             )
-            schema = request.output_model or request.output_schema or {"type": "object", "properties": {}}
-            chain = prompt | self._chat_model.with_structured_output(schema)
+            structured_schema = request.output_model or request.output_schema or {"type": "object", "properties": {}}
+            chain = prompt | self._chat_model.with_structured_output(structured_schema)
             return chain.invoke(request.input_values, config=_runnable_config(run_name, tags, metadata))  # type: ignore[arg-type]
 
-        schema = request.output_schema  # type: ignore[assignment]
-        if schema is None and request.output_model is not None:
-            schema = request.output_model.model_json_schema()
+        json_schema: dict[str, Any] | None = request.output_schema
+        if json_schema is None and request.output_model is not None:
+            json_schema = request.output_model.model_json_schema()
+        user_prompt = _render_user_prompt(request.user_template, request.input_values)
+        native_schema: dict[str, Any] | None = json_schema
+        if json_schema is not None and not self._supports_native_structured_output():
+            user_prompt = _with_json_instructions(user_prompt, json_schema)
+            native_schema = None
         text = self._chat_sync(
             request.system_template,
-            _render_user_prompt(request.user_template, request.input_values),
-            schema,  # type: ignore[arg-type]
+            user_prompt,
+            native_schema,
         )
         return _parse_fallback(text, request.output_model)
 
@@ -127,7 +139,7 @@ class OpenAILLMClient:
     ) -> dict[str, Any]:
         if not requests:
             return {}
-        if self._chat_model is not None and ChatPromptTemplate is not None and RunnableParallel is not None:
+        if self._supports_native_structured_output() and self._chat_model is not None and ChatPromptTemplate is not None and RunnableParallel is not None:
             sample_input = next(iter(requests.values())).input_values
             if all(req.input_values == sample_input for req in requests.values()):
                 chains: dict[str, Any] = {}
@@ -161,6 +173,9 @@ class OpenAILLMClient:
                 results[key] = future.result()
         return results
 
+    def _supports_native_structured_output(self) -> bool:
+        return self._provider == "openai"
+
 
 def _message_to_text(message: BaseMessage | str) -> str:
     if isinstance(message, str):
@@ -188,11 +203,18 @@ def _render_user_prompt(template: str, values: dict[str, Any]) -> str:
         return template
 
 
+def _with_json_instructions(user_prompt: str, json_schema: dict[str, Any]) -> str:
+    schema_text = json.dumps(json_schema, ensure_ascii=False)
+    return (
+        f"{user_prompt}\n\n"
+        "Return only valid JSON matching this JSON Schema. "
+        "Do not include markdown fences or explanatory text.\n"
+        f"JSON Schema:\n{schema_text}"
+    )
+
+
 def _parse_fallback(text: str, output_model: Any) -> Any:
-    try:
-        parsed: Any = json.loads(text)
-    except json.JSONDecodeError:
-        parsed = {}
+    parsed = _load_json_payload(text)
     if output_model is None:
         return parsed
     try:
@@ -203,6 +225,25 @@ def _parse_fallback(text: str, output_model: Any) -> Any:
             if len(fields) == 1:
                 return output_model.model_validate({fields[0]: parsed})
         raise
+
+
+def _load_json_payload(text: str) -> Any:
+    decoder = json.JSONDecoder()
+    stripped = text.strip()
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        pass
+
+    for start_char in ("{", "["):
+        start = stripped.find(start_char)
+        while start != -1:
+            try:
+                parsed, _end = decoder.raw_decode(stripped[start:])
+                return parsed
+            except json.JSONDecodeError:
+                start = stripped.find(start_char, start + 1)
+    return {}
 
 
 def _runnable_config(
