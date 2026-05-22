@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "synthetic-smoke-v1",
+  "name": "Synthetic Smoke Benchmark",
+  "description": "A committed example manifest showing the expected shape for benchmark metadata. It does not reference real proprietary files.",
+  "data_policy": {
+    "raw_files_committed": false,
+    "label_policy": "synthetic",
+    "notes": "Use synthetic or anonymized labels in git. Keep real PDFs under ignored local paths."
+  },
+  "cases": [
+    {
+      "case_id": "synthetic-income-001",
+      "company": "Example Co",
+      "ticker": "EXM",
+      "filing_type": "10-Q",
+      "period_end": "2025-12-31",
+      "source": {
+        "type": "synthetic",
+        "path": "tests/golden/conftest.py",
+        "license": "synthetic"
+      },
+      "expected_facts": [
+        {
+          "statement_type": "income",
+          "concept": "revenue",
+          "label": "Revenue",
+          "value": 100.0,
+          "unit": "USD millions",
+          "currency": "USD",
+          "period_end": "2025-12-31",
+          "evidence": [
+            {"page": 1, "quote": "Revenue 100"}
+          ]
+        }
+      ],
+      "expected_notes": ["other"],
+      "expected_risk_categories": []
+    }
+  ]
+}

@@ -11,6 +11,14 @@ __pycache__/
 data/
 tmpclaude-*
 
+# Benchmark data policy: commit manifests/schemas/thresholds, keep raw/private data local.
+benchmarks/raw/
+benchmarks/private/
+benchmarks/**/*.pdf
+benchmarks/**/*.xlsx
+benchmarks/**/*.xls
+benchmarks/**/labels.private.json
+
 # Example runtime artifacts
 examples/**/output/
 examples/**/fixtures/*.pdf

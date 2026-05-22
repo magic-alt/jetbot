@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/magic-alt/jetbot/benchmarks/manifest.schema.json",
+  "title": "Jetbot Benchmark Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "benchmark_id", "name", "cases"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "benchmark_id": {"type": "string", "minLength": 1},
+    "name": {"type": "string", "minLength": 1},
+    "description": {"type": "string"},
+    "data_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw_files_committed", "label_policy"],
+      "properties": {
+        "raw_files_committed": {"type": "boolean", "const": false},
+        "label_policy": {"type": "string", "enum": ["synthetic", "anonymized", "private"]},
+        "notes": {"type": "string"}
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/case"}
+    }
+  },
+  "$defs": {
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "source", "expected_facts"],
+      "properties": {
+        "case_id": {"type": "string", "minLength": 1},
+        "company": {"type": "string"},
+        "ticker": {"type": "string"},
+        "filing_type": {"type": "string"},
+        "period_end": {"type": "string", "format": "date"},
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "path"],
+          "properties": {
+            "type": {"type": "string", "enum": ["synthetic", "pdf", "html", "xbrl"]},
+            "path": {"type": "string", "minLength": 1},
+            "license": {"type": "string"},
+            "sha256": {"type": "string"}
+          }
+        },
+        "expected_facts": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/fact"}
+        },
+        "expected_notes": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "expected_risk_categories": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["statement_type", "concept", "value"],
+      "properties": {
+        "statement_type": {"type": "string", "enum": ["income", "balance", "cashflow", "note", "other"]},
+        "concept": {"type": "string", "minLength": 1},
+        "label": {"type": "string"},
+        "value": {"type": "number"},
+        "unit": {"type": "string"},
+        "currency": {"type": "string"},
+        "period_end": {"type": "string", "format": "date"},
+        "evidence": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/evidence"}
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page"],
+      "properties": {
+        "page": {"type": "integer", "minimum": 1},
+        "table_id": {"type": "string"},
+        "row": {"type": "integer", "minimum": 0},
+        "col": {"type": "integer", "minimum": 0},
+        "quote": {"type": "string"}
+      }
+    }
+  }
+}
