@@ -758,21 +758,21 @@ def _tables_to_statement(kind: str, tables: list[Table]) -> FinancialStatement:
 def _statement_from_pages(state: AgentState, kind: str) -> FinancialStatement:
     labels: dict[str, list[tuple[str, str, int]]] = {
         "income": [
-            ("Revenue", "revenue", 0),
-            ("Total net sales", "revenue", 0),
-            ("Net sales", "revenue", 0),
-            ("营业收入", "revenue", 0),
-            ("Total cost of sales", "cost_of_goods_sold", 0),
-            ("Cost of goods sold", "cost_of_goods_sold", 0),
-            ("营业成本", "cost_of_goods_sold", 0),
-            ("Gross margin", "gross_profit", 0),
-            ("Gross Profit", "gross_profit", 0),
-            ("毛利润", "gross_profit", 0),
-            ("Operating profit", "operating_income", 0),
-            ("Operating income", "operating_income", 0),
-            ("营业利润", "operating_income", 0),
-            ("Net income", "net_income", 0),
-            ("净利润", "net_income", 0),
+            ("Revenue", "revenue", 2),
+            ("Total net sales", "revenue", 2),
+            ("Net sales", "revenue", 2),
+            ("营业收入", "revenue", 2),
+            ("Total cost of sales", "cost_of_goods_sold", 2),
+            ("Cost of goods sold", "cost_of_goods_sold", 2),
+            ("营业成本", "cost_of_goods_sold", 2),
+            ("Gross margin", "gross_profit", 2),
+            ("Gross Profit", "gross_profit", 2),
+            ("毛利润", "gross_profit", 2),
+            ("Operating profit", "operating_income", 2),
+            ("Operating income", "operating_income", 2),
+            ("营业利润", "operating_income", 2),
+            ("Net income", "net_income", 2),
+            ("净利润", "net_income", 2),
         ],
         "balance": [
             ("Cash and equivalents", "cash_and_equivalents", 0),
@@ -806,10 +806,11 @@ def _statement_from_pages(state: AgentState, kind: str) -> FinancialStatement:
     line_items: list[StatementLineItem] = []
     totals: dict[str, float] = {}
     seen: set[str] = set()
+    known_labels = [label for label, _, _ in labels.get(kind, [])]
     for label, name_norm, preferred_index in labels.get(kind, []):
         if name_norm in seen:
             continue
-        match = _extract_labeled_metric(state.pages, label, preferred_index)
+        match = _extract_labeled_metric(state.pages, label, preferred_index, known_labels)
         if match is None:
             continue
         value, source_ref = match
@@ -839,7 +840,12 @@ def _statement_from_pages(state: AgentState, kind: str) -> FinancialStatement:
     )
 
 
-def _extract_labeled_metric(pages: list[Page], label: str, preferred_index: int) -> tuple[float, SourceRef] | None:
+def _extract_labeled_metric(
+    pages: list[Page],
+    label: str,
+    preferred_index: int,
+    known_labels: list[str],
+) -> tuple[float, SourceRef] | None:
     label_lower = label.lower()
     for page in pages:
         normalized_text = " ".join(page.text.split())
@@ -847,12 +853,34 @@ def _extract_labeled_metric(pages: list[Page], label: str, preferred_index: int)
         if offset < 0:
             continue
         snippet = normalized_text[offset : offset + 260]
-        values = _parse_numbers_from_snippet(snippet)
+        segment = _metric_segment(snippet, label, known_labels)
+        values = _parse_numbers_from_snippet(segment)
         if not values:
             continue
-        value = values[min(preferred_index, len(values) - 1)]
-        return value, SourceRef(ref_type="page_text", page=page.page_number, table_id=None, quote=snippet, confidence=0.65)
+        value = _select_metric_value(values, preferred_index)
+        return value, SourceRef(ref_type="page_text", page=page.page_number, table_id=None, quote=segment, confidence=0.65)
     return None
+
+
+def _metric_segment(snippet: str, label: str, known_labels: list[str]) -> str:
+    snippet_lower = snippet.lower()
+    search_start = len(label)
+    next_label_offsets = [
+        position
+        for candidate in known_labels
+        if candidate.lower() != label.lower()
+        for position in [snippet_lower.find(candidate.lower(), search_start)]
+        if position >= 0
+    ]
+    if not next_label_offsets:
+        return snippet
+    return snippet[: min(next_label_offsets)].rstrip()
+
+
+def _select_metric_value(values: list[float], preferred_index: int) -> float:
+    if preferred_index <= 0 or len(values) <= 2:
+        return values[0]
+    return values[min(preferred_index, len(values) - 1)]
 
 
 def _parse_numbers_from_snippet(snippet: str) -> list[float]:
