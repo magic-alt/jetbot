@@ -806,11 +806,13 @@ def _statement_from_pages(state: AgentState, kind: str) -> FinancialStatement:
     line_items: list[StatementLineItem] = []
     totals: dict[str, float] = {}
     seen: set[str] = set()
-    known_labels = [label for label, _, _ in labels.get(kind, [])]
+    segment_boundaries = [label for label, _, _ in labels.get(kind, [])]
+    if kind == "income":
+        segment_boundaries.extend(["Operating expenses", "营业费用"])
     for label, name_norm, preferred_index in labels.get(kind, []):
         if name_norm in seen:
             continue
-        match = _extract_labeled_metric(state.pages, label, preferred_index, known_labels)
+        match = _extract_labeled_metric(state.pages, label, preferred_index, segment_boundaries)
         if match is None:
             continue
         value, source_ref = match
