@@ -4,10 +4,11 @@ import hashlib
 from collections.abc import Iterable
 from typing import Any
 
-from src.schemas.models import Correction, FinancialFact, FinancialStatement, SourceRef, StatementLineItem
+from src.schemas.models import Correction, DocumentMeta, FinancialFact, FinancialStatement, SourceRef, StatementLineItem
 
 
-def facts_from_statements(doc_id: str, statements: dict[str, FinancialStatement]) -> list[FinancialFact]:
+def facts_from_statements(doc_meta: str | DocumentMeta, statements: dict[str, FinancialStatement]) -> list[FinancialFact]:
+    meta = _coerce_doc_meta(doc_meta)
     facts: list[FinancialFact] = []
     seen: set[tuple[str, str]] = set()
 
@@ -17,7 +18,7 @@ def facts_from_statements(doc_id: str, statements: dict[str, FinancialStatement]
         for item in statement.line_items:
             if item.value_current is None and not item.source_refs:
                 continue
-            fact = _fact_from_line_item(doc_id, statement, item)
+            fact = _fact_from_line_item(meta, statement, item)
             facts.append(fact)
             seen.add((statement.statement_type, item.name_norm))
 
@@ -27,10 +28,11 @@ def facts_from_statements(doc_id: str, statements: dict[str, FinancialStatement]
                 continue
             facts.append(
                 _build_fact(
-                    doc_id=doc_id,
+                    doc_meta=meta,
                     statement=statement,
                     concept=concept,
                     label=concept,
+                    raw_label=concept,
                     value=value,
                     unit=None,
                     currency=None,
@@ -55,16 +57,17 @@ def apply_corrections(facts: Iterable[FinancialFact], corrections: Iterable[Corr
 
 
 def _fact_from_line_item(
-    doc_id: str,
+    doc_meta: DocumentMeta,
     statement: FinancialStatement,
     item: StatementLineItem,
 ) -> FinancialFact:
     confidence = _evidence_confidence(item.source_refs, statement.extraction_confidence)
     return _build_fact(
-        doc_id=doc_id,
+        doc_meta=doc_meta,
         statement=statement,
         concept=item.name_norm,
         label=item.name_raw,
+        raw_label=item.name_raw,
         value=item.value_current,
         unit=item.unit,
         currency=item.currency,
@@ -76,10 +79,11 @@ def _fact_from_line_item(
 
 def _build_fact(
     *,
-    doc_id: str,
+    doc_meta: DocumentMeta,
     statement: FinancialStatement,
     concept: str,
     label: str,
+    raw_label: str,
     value: float | None,
     unit: str | None,
     currency: str | None,
@@ -88,11 +92,16 @@ def _build_fact(
     metadata: dict[str, Any],
 ) -> FinancialFact:
     return FinancialFact(
-        fact_id=_fact_id(doc_id, statement.statement_type, concept, statement.period_end, label),
-        doc_id=doc_id,
+        fact_id=_fact_id(doc_meta.doc_id, statement.statement_type, concept, statement.period_end, raw_label),
+        doc_id=doc_meta.doc_id,
+        company=doc_meta.company,
+        ticker=doc_meta.ticker,
+        cik=doc_meta.cik,
+        filing_type=doc_meta.filing_type or doc_meta.report_type,
         statement_type=statement.statement_type,
         concept=concept,
         label=label,
+        raw_label=raw_label,
         value=value,
         unit=unit,
         scale=_infer_scale(unit),
@@ -105,6 +114,12 @@ def _build_fact(
         extraction_engine=_evidence_engine(source_refs),
         metadata=metadata,
     )
+
+
+def _coerce_doc_meta(doc_meta: str | DocumentMeta) -> DocumentMeta:
+    if isinstance(doc_meta, DocumentMeta):
+        return doc_meta
+    return DocumentMeta(doc_id=doc_meta, filename=f"{doc_meta}.pdf")
 
 
 def _fact_id(doc_id: str, statement_type: str, concept: str, period_end: object, label: str) -> str:

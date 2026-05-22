@@ -140,6 +140,9 @@ async def create_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     company: str | None = Form(default=None),
+    ticker: str | None = Form(default=None),
+    cik: str | None = Form(default=None),
+    filing_type: str | None = Form(default=None),
     period_end: str | None = Form(default=None),
     report_type: str | None = Form(default=None),
     language: str | None = Form(default=None),
@@ -174,6 +177,9 @@ async def create_document(
         doc_id=doc_id,
         filename=safe_filename,
         company=company,
+        ticker=ticker,
+        cik=cik,
+        filing_type=filing_type,
         period_end=parsed_period,
         report_type=report_type,
         language=language,
@@ -271,6 +277,14 @@ async def get_facts(_auth: _AuthDep, doc_id: str):
     data = store.load_json(doc_id, "extracted/facts.json")
     if data is None:
         return _err("not_found", "Facts not found")
+    return _ok(data)
+
+
+@router.get("/documents/{doc_id}/fact-validation")
+async def get_fact_validation(_auth: _AuthDep, doc_id: str):
+    data = store.load_json(doc_id, "extracted/fact_validation.json")
+    if data is None:
+        return _err("not_found", "Fact validation not found")
     return _ok(data)
 
 
@@ -532,6 +546,8 @@ def _save_partial_results(doc_id: str) -> None:
             s.save_json(doc_id, "extracted/statements.json", {k: v.model_dump() for k, v in partial.statements.items()})
         if partial.facts:
             s.save_json(doc_id, "extracted/facts.json", [fact.model_dump(mode="json") for fact in partial.facts])
+        if partial.fact_validation_results:
+            s.save_json(doc_id, "extracted/fact_validation.json", partial.fact_validation_results.model_dump(mode="json"))
         if partial.notes:
             s.save_json(doc_id, "extracted/notes.json", [n.model_dump() for n in partial.notes])
         if partial.risk_signals:
