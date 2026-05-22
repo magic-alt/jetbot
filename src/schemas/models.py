@@ -16,8 +16,13 @@ class SourceRef(BaseModel):
     ref_type: Literal["page_text", "table", "image"]
     page: int
     table_id: str | None = None
+    row: int | None = None
+    col: int | None = None
+    bbox: tuple[float, float, float, float] | None = None
     quote: str | None = Field(default=None)
     confidence: float = Field(ge=0.0, le=1.0)
+    engine: str | None = None
+    artifact_path: str | None = None
 
     @field_validator("quote")
     @classmethod
@@ -65,6 +70,11 @@ class TableCell(BaseModel):
     row: int
     col: int
     text: str
+    rowspan: int = Field(default=1, ge=1)
+    colspan: int = Field(default=1, ge=1)
+    bbox: tuple[float, float, float, float] | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    engine: str | None = None
 
 
 class Table(BaseModel):
@@ -103,6 +113,58 @@ class FinancialStatement(BaseModel):
     totals: dict[str, float] = Field(default_factory=dict)
     extraction_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     issues: list[str] = Field(default_factory=list)
+
+
+class FinancialFact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fact_id: str
+    doc_id: str
+    statement_type: Literal["income", "balance", "cashflow", "note", "other"]
+    concept: str
+    label: str
+    value: float | None = None
+    unit: str | None = None
+    scale: float | None = None
+    currency: str | None = None
+    period_start: date | None = None
+    period_end: date | None = None
+    period_type: Literal["instant", "duration", "unknown"] = "unknown"
+    source_refs: list[SourceRef] = Field(default_factory=list)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    extraction_engine: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExtractionTrace(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    trace_id: str
+    doc_id: str
+    stage: str
+    engine: str
+    status: Literal["succeeded", "failed", "skipped"]
+    elapsed_ms: int | None = None
+    source_refs: list[SourceRef] = Field(default_factory=list)
+    metrics: dict[str, float | int | str] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+    created_at: datetime = Field(default_factory=_utc_now)
+
+
+class Correction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    correction_id: str
+    doc_id: str
+    fact_id: str
+    field_name: str
+    old_value: Any = None
+    new_value: Any = None
+    actor: str = "system"
+    reason: str | None = None
+    source_refs: list[SourceRef] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=_utc_now)
 
 
 class KeyNote(BaseModel):
