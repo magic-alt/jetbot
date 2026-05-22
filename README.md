@@ -1,12 +1,14 @@
 # Jetbot
 
-Jetbot is a financial report analysis platform that turns PDF filings into structured financial statements, key notes, risk signals, event-study outputs, and trader-style summaries. It combines PDF extraction, validation, LLM orchestration, a FastAPI backend, and a Vue dashboard in one repository.
+Jetbot is a Filing-to-Model Copilot and Financial Fact Platform for evidence-backed financial report extraction. It turns PDF filings into canonical financial facts, structured statements, key notes, risk signals, event-study outputs, and analyst-ready summaries.
 
-It is designed for teams that need a single workflow to ingest reports, inspect extracted evidence, and ship the results through an API, a CLI, or a browser UI.
+It is designed for teams that need a single workflow to ingest reports, inspect source evidence, review and correct extracted facts, and ship the results through an API, a CLI, exports, or a browser UI.
 
 ## Highlights
 
-- End-to-end PDF pipeline for raw text, tables, statements, notes, and report generation.
+- End-to-end PDF pipeline for raw text, tables, statements, notes, facts, and report generation.
+- Canonical financial fact layer with page/table/cell evidence metadata for review and downstream exports.
+- Evaluation runner with machine-readable reports and configurable quality thresholds.
 - Works in mock mode out of the box, with optional OpenAI and Anthropic model routing.
 - Vue 3 dashboard for reviewing original PDFs alongside extraction and analysis outputs.
 - Docker-first local stack with API, worker, Redis, PostgreSQL, and MinIO.
@@ -17,13 +19,13 @@ It is designed for teams that need a single workflow to ingest reports, inspect 
 
 ```mermaid
 flowchart LR
-    A[Financial PDF] --> B[PDF extraction and OCR]
-    B --> C[Normalization and validation]
-    C --> D[LLM enrichment and report generation]
-    C --> E[Risk signals and event study]
-    D --> F[FastAPI and CLI]
-    E --> F
-    F --> G[Vue dashboard at /ui]
+  A[Financial Filing PDF] --> B[PDF extraction and OCR]
+  B --> C[Statements and canonical facts]
+  C --> D[Evidence and validation]
+  D --> E[Review, API, and exports]
+  D --> F[Risk signals and analyst reports]
+  E --> G[Vue dashboard at /ui]
+  F --> G
 ```
 
 ## Quick Start
@@ -81,7 +83,7 @@ After startup, the main entry points are:
 | Surface | URL / Command | Notes |
 | --- | --- | --- |
 | Web UI | `http://127.0.0.1:18000/ui/` | Review uploaded PDFs, tables, statements, signals, and generated reports |
-| API | `http://127.0.0.1:18000/v1` | Programmatic ingestion and retrieval |
+| API | `http://127.0.0.1:18000/v1` | Programmatic ingestion and retrieval, including canonical facts |
 | OpenAPI docs | `http://127.0.0.1:18000/docs` | Interactive API explorer |
 | Health | `http://127.0.0.1:18000/health` | Liveness probe |
 | Metrics | `http://127.0.0.1:18000/metrics` | Prometheus endpoint |
@@ -153,6 +155,7 @@ pip install -e ".[all]"
 ```bash
 make test
 make eval
+python scripts/eval.py --thresholds benchmarks/thresholds/golden_minimum.json
 make fmt
 make lint
 make typecheck
@@ -164,12 +167,19 @@ The repository is organized around a small number of clear surfaces:
 
 - `src/api/` for HTTP entry points and application wiring
 - `src/pdf/` for extraction, rendering, tables, and OCR
-- `src/finance/` for schemas, normalization, validation, and signal logic
+- `src/finance/` for facts, normalization, validation, and signal logic
 - `src/agent/` for pipeline orchestration and state handling
 - `src/market/` for event-study analysis and market providers
 - `web/` for the Vue 3 dashboard
 - `tests/` for API, storage, pipeline, frontend-adjacent, and integration coverage
-- `docs/` for architecture, branch protection, and project notes
+- `benchmarks/` for benchmark manifest schemas, threshold configs, and non-sensitive sample manifests
+- `docs/` for architecture, branch protection, roadmap, and project notes
+
+## Benchmark Data Policy
+
+Benchmark manifests, anonymized labels, synthetic fixtures, schemas, and threshold configs can be committed. Raw third-party or proprietary PDFs, private labels, customer files, and generated benchmark artifacts must stay out of git.
+
+Use `benchmarks/raw/` or `benchmarks/private/` for local-only datasets. Those paths are ignored by git. Store only stable metadata, expected facts, expected evidence pointers, and licensing notes in committed manifests.
 
 ## Contributing
 

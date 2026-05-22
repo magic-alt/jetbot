@@ -17,6 +17,7 @@ DEFAULT_OUTPUT_DIR = Path("data") / "eval"
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Jetbot financial extraction evaluation.")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Directory for eval artifacts.")
+    parser.add_argument("--thresholds", help="Optional JSON file with min_metrics/max_metrics quality gates.")
     parser.add_argument("--skip-pytest", action="store_true", help="Skip pytest golden gate and only compute metrics.")
     parser.add_argument("--allow-real-llm", action="store_true", help="Do not force the mock LLM provider.")
     return parser.parse_args(argv)
@@ -32,11 +33,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     pytest_result = None if args.skip_pytest else _run_pytest_gate()
     case_results = _run_golden_cases(output_dir)
     metrics = _compute_metrics(case_results)
+    threshold_results = evaluate_thresholds(metrics, load_thresholds(args.thresholds) if args.thresholds else None)
     finished_at = _utc_now()
     report = build_eval_report(
         metrics=metrics,
         case_results=case_results,
         pytest_result=pytest_result,
+        threshold_results=threshold_results,
         started_at=started_at,
         finished_at=finished_at,
     )
@@ -44,6 +47,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(render_markdown_report(report))
     if pytest_result and pytest_result["exit_code"] != 0:
         return int(pytest_result["exit_code"])
+    if threshold_results["status"] == "failed":
+        return 2
     return 0
 
 
@@ -52,11 +57,15 @@ def build_eval_report(
     metrics: dict[str, Any],
     case_results: list[dict[str, Any]],
     pytest_result: dict[str, Any] | None,
+    threshold_results: dict[str, Any] | None = None,
     started_at: str,
     finished_at: str,
 ) -> dict[str, Any]:
     status = "passed"
     if pytest_result and pytest_result["exit_code"] != 0:
+        status = "failed"
+    threshold_results = threshold_results or {"status": "skipped", "checks": []}
+    if threshold_results["status"] == "failed":
         status = "failed"
     return {
         "schema_version": 1,
@@ -66,6 +75,7 @@ def build_eval_report(
         "finished_at": finished_at,
         "metrics": metrics,
         "cases": [_case_summary(case) for case in case_results],
+        "thresholds": threshold_results,
         "pytest": pytest_result,
     }
 
@@ -84,6 +94,14 @@ def render_markdown_report(report: dict[str, Any]) -> str:
     ]
     for key, value in metrics.items():
         lines.append(f"- `{key}`: {_format_metric(value)}")
+    thresholds = report.get("thresholds", {"status": "skipped", "checks": []})
+    lines.extend(["", "## Thresholds", "", f"Status: **{thresholds['status']}**"])
+    for check in thresholds.get("checks", []):
+        comparator = ">=" if check["kind"] == "min" else "<="
+        lines.append(
+            f"- `{check['metric']}`: {_format_metric(check.get('actual'))} "
+            f"{comparator} {_format_metric(check['threshold'])} -> {check['status']}"
+        )
     lines.extend(["", "## Cases", ""])
     for case in report["cases"]:
         lines.append(
@@ -100,6 +118,45 @@ def write_eval_report(report: dict[str, Any], output_dir: Path) -> None:
         encoding="utf-8",
     )
     (output_dir / "eval_report.md").write_text(render_markdown_report(report), encoding="utf-8")
+
+
+def load_thresholds(path: str | None) -> dict[str, Any] | None:
+    if not path:
+        return None
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def evaluate_thresholds(metrics: dict[str, Any], thresholds: dict[str, Any] | None) -> dict[str, Any]:
+    if not thresholds:
+        return {"status": "skipped", "checks": []}
+
+    checks: list[dict[str, Any]] = []
+    failed = False
+    for metric, threshold in thresholds.get("min_metrics", {}).items():
+        actual = metrics.get(metric)
+        passed = _is_number(actual) and float(actual) >= float(threshold)
+        failed = failed or not passed
+        checks.append(_threshold_check("min", metric, actual, threshold, passed))
+    for metric, threshold in thresholds.get("max_metrics", {}).items():
+        actual = metrics.get(metric)
+        passed = _is_number(actual) and float(actual) <= float(threshold)
+        failed = failed or not passed
+        checks.append(_threshold_check("max", metric, actual, threshold, passed))
+    return {"status": "failed" if failed else "passed", "checks": checks}
+
+
+def _threshold_check(kind: str, metric: str, actual: Any, threshold: Any, passed: bool) -> dict[str, Any]:
+    return {
+        "kind": kind,
+        "metric": metric,
+        "actual": actual,
+        "threshold": threshold,
+        "status": "passed" if passed else "failed",
+    }
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
 
 
 def _case_summary(case: dict[str, Any]) -> dict[str, Any]:

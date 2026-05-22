@@ -79,7 +79,7 @@ Jetbot 当前已经具备较完整的财报 PDF Agent MVP 能力：PDF 上传、
 
 ## 4. 已完成的第一实现切片
 
-本路线图的第一切片已经在当前分支 `feat/financial-fact-foundation` 中实现，目标是为后续人工复核、导出和 benchmark 建立事实层底座。
+本路线图的第一切片已通过 PR12 合并到 `main`，目标是为后续人工复核、导出和 benchmark 建立事实层底座。
 
 ### 4.1 Schema 与证据模型
 
@@ -162,7 +162,7 @@ Jetbot 当前已经具备较完整的财报 PDF Agent MVP 能力：PDF 上传、
 
 - 文档和 README 中明确 Jetbot 的下一阶段定位。
 - 每个 P0 feature 都能映射到质量指标。
-- 不把真实敏感 PDF 提交到仓库。
+- 不把真实敏感 PDF 提交到仓库；真实样本只保存在本地或私有存储，仓库只提交 manifest、匿名标签、合成 fixture、schema 和阈值配置。
 
 ### Phase 1：Benchmark 与 Eval CI，Week 1-2
 
@@ -192,6 +192,7 @@ Jetbot 当前已经具备较完整的财报 PDF Agent MVP 能力：PDF 上传、
 验收标准：
 
 - `python scripts/eval.py --output-dir data/eval-dev` 可生成报告。
+- `python scripts/eval.py --thresholds benchmarks/thresholds/golden_minimum.json` 可作为质量门槛，指标低于阈值时返回非 0。
 - 报告包含 document-level 与 aggregate metrics。
 - synthetic golden gate 可稳定在 CI 中运行。
 - real PDF benchmark 可本地运行，且不会把敏感样本提交到 git。
@@ -574,13 +575,14 @@ docker compose up --build
 
 ## 10. 下一步推荐执行顺序
 
-1. 完成 correction API 和 effective facts。
-2. 在前端增加 facts tab 或 review panel。
-3. 给 `PdfViewer` 增加 bbox overlay。
-4. 给 `EvidenceLink` 增加 row/col/bbox payload。
-5. 增加 Excel/CSV/JSON export。
-6. 扩展 benchmark manifest 和 threshold gate。
-7. 开始 table router protocol。
-8. 再接 SEC/XBRL/HTML ingestion。
+1. 收口 Phase 0：README/路线图正式定位为 Filing-to-Model Copilot / Financial Fact Platform，并文档化 benchmark 数据政策。
+2. 完成 Phase 1 评测门槛：benchmark manifest schema、样例 manifest、threshold 配置和 eval gate。
+3. 完成 correction API 和 effective facts。
+4. 在前端增加 facts tab 或 review panel。
+5. 给 `PdfViewer` 增加 bbox overlay。
+6. 给 `EvidenceLink` 增加 row/col/bbox payload。
+7. 增加 Excel/CSV/JSON export。
+8. 开始 table router protocol。
+9. 再接 SEC/XBRL/HTML ingestion。
 
 这一路线的判断标准很简单：每增加一个能力，都必须让 facts 更准确、证据更可审计、复核更省时间、输出更能进入真实 analyst workflow。
