@@ -7,7 +7,7 @@ services:
       args:
         EXTRAS: "celery,postgres,s3"
     ports:
-      - "${JETBOT_API_PORT:-18000}:8000"
+      - "18000:8000"
     env_file:
       - path: .env
         required: false
@@ -47,7 +47,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "${JETBOT_REDIS_PORT:-16379}:6379"
+      - "16379:6379"
 
   postgres:
     image: postgres:16-alpine
@@ -56,7 +56,7 @@ services:
       POSTGRES_PASSWORD: jetbot
       POSTGRES_DB: jetbot
     ports:
-      - "${JETBOT_POSTGRES_PORT:-15432}:5432"
+      - "15432:5432"
     volumes:
       - pg-data:/var/lib/postgresql/data
 
@@ -67,8 +67,8 @@ services:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: minio123
     ports:
-      - "${JETBOT_MINIO_PORT:-19000}:9000"
-      - "${JETBOT_MINIO_CONSOLE_PORT:-19001}:9001"
+      - "19000:9000"
+      - "19001:9001"
     volumes:
       - minio-data:/data
 
