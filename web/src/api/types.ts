@@ -76,7 +76,16 @@ export interface ExtractedTable {
   table_id: string
   page: number
   title?: string | null
+  n_rows?: number | null
+  n_cols?: number | null
+  raw_markdown?: string | null
   cells: TableCell[]
+}
+
+export interface ExtractedPage {
+  page_number: number
+  text: string
+  images?: string[]
 }
 
 export interface PdfOperationResult {
