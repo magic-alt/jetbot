@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "local-private-us-filings-v1",
+  "name": "Local Private US Filing Batch",
+  "description": "First local-only batch covering anonymized 10-K and 10-Q filings. Raw PDFs stay under ignored paths while manifests and anonymized expected facts remain committed.",
+  "data_policy": {
+    "raw_files_committed": false,
+    "label_policy": "anonymized",
+    "notes": "Copy private PDFs into benchmarks/private/us_filings/ before running. Keep any non-anonymized analyst labels outside git."
+  },
+  "cases": [
+    {
+      "case_id": "us10k-tech-001",
+      "company": "US Tech Co A",
+      "ticker": "UTA",
+      "filing_type": "10-K",
+      "period_end": "2025-12-31",
+      "source": {
+        "type": "pdf",
+        "path": "../private/us_filings/us10k-tech-001.pdf",
+        "license": "local-private"
+      },
+      "expected_facts": [
+        {"statement_type": "income", "concept": "revenue", "value": 1980.0, "currency": "USD", "evidence": [{"page": 34}]},
+        {"statement_type": "income", "concept": "gross_profit", "value": 820.0, "currency": "USD", "evidence": [{"page": 34}]},
+        {"statement_type": "income", "concept": "operating_income", "value": 330.0, "currency": "USD", "evidence": [{"page": 35}]},
+        {"statement_type": "income", "concept": "net_income", "value": 240.0, "currency": "USD", "evidence": [{"page": 35}]},
+        {"statement_type": "balance", "concept": "total_assets", "value": 2250.0, "currency": "USD", "evidence": [{"page": 32}]},
+        {"statement_type": "balance", "concept": "total_liabilities", "value": 910.0, "currency": "USD", "evidence": [{"page": 32}]},
+        {"statement_type": "balance", "concept": "total_equity", "value": 1340.0, "currency": "USD", "evidence": [{"page": 32}]},
+        {"statement_type": "balance", "concept": "cash_and_equivalents", "value": 280.0, "currency": "USD", "evidence": [{"page": 32}]},
+        {"statement_type": "cashflow", "concept": "operating_cash_flow", "value": 410.0, "currency": "USD", "evidence": [{"page": 36}]},
+        {"statement_type": "cashflow", "concept": "capex", "value": -120.0, "currency": "USD", "evidence": [{"page": 36}]}
+      ],
+      "expected_notes": ["accounting_policy", "segment"],
+      "expected_risk_categories": []
+    },
+    {
+      "case_id": "us10q-industrial-001",
+      "company": "US Industrial Co B",
+      "ticker": "UIB",
+      "filing_type": "10-Q",
+      "period_end": "2026-03-31",
+      "source": {
+        "type": "pdf",
+        "path": "../private/us_filings/us10q-industrial-001.pdf",
+        "license": "local-private"
+      },
+      "expected_facts": [
+        {"statement_type": "income", "concept": "revenue", "value": 620.0, "currency": "USD", "evidence": [{"page": 8}]},
+        {"statement_type": "income", "concept": "gross_profit", "value": 180.0, "currency": "USD", "evidence": [{"page": 8}]},
+        {"statement_type": "income", "concept": "operating_income", "value": 72.0, "currency": "USD", "evidence": [{"page": 8}]},
+        {"statement_type": "income", "concept": "net_income", "value": 41.0, "currency": "USD", "evidence": [{"page": 8}]},
+        {"statement_type": "balance", "concept": "total_assets", "value": 1430.0, "currency": "USD", "evidence": [{"page": 6}]},
+        {"statement_type": "balance", "concept": "total_liabilities", "value": 790.0, "currency": "USD", "evidence": [{"page": 6}]},
+        {"statement_type": "balance", "concept": "total_equity", "value": 640.0, "currency": "USD", "evidence": [{"page": 6}]},
+        {"statement_type": "balance", "concept": "cash_and_equivalents", "value": 92.0, "currency": "USD", "evidence": [{"page": 6}]},
+        {"statement_type": "cashflow", "concept": "operating_cash_flow", "value": 88.0, "currency": "USD", "evidence": [{"page": 10}]},
+        {"statement_type": "cashflow", "concept": "capex", "value": -24.0, "currency": "USD", "evidence": [{"page": 10}]}
+      ],
+      "expected_notes": ["other"],
+      "expected_risk_categories": []
+    },
+    {
+      "case_id": "us10k-healthcare-001",
+      "company": "US Healthcare Co C",
+      "ticker": "UHC",
+      "filing_type": "10-K",
+      "period_end": "2025-12-31",
+      "source": {
+        "type": "pdf",
+        "path": "../private/us_filings/us10k-healthcare-001.pdf",
+        "license": "local-private"
+      },
+      "expected_facts": [
+        {"statement_type": "income", "concept": "revenue", "value": 1140.0, "currency": "USD", "evidence": [{"page": 41}]},
+        {"statement_type": "income", "concept": "gross_profit", "value": 530.0, "currency": "USD", "evidence": [{"page": 41}]},
+        {"statement_type": "income", "concept": "operating_income", "value": 148.0, "currency": "USD", "evidence": [{"page": 41}]},
+        {"statement_type": "income", "concept": "net_income", "value": 101.0, "currency": "USD", "evidence": [{"page": 41}]},
+        {"statement_type": "balance", "concept": "total_assets", "value": 2680.0, "currency": "USD", "evidence": [{"page": 39}]},
+        {"statement_type": "balance", "concept": "total_liabilities", "value": 1180.0, "currency": "USD", "evidence": [{"page": 39}]},
+        {"statement_type": "balance", "concept": "total_equity", "value": 1500.0, "currency": "USD", "evidence": [{"page": 39}]},
+        {"statement_type": "balance", "concept": "cash_and_equivalents", "value": 310.0, "currency": "USD", "evidence": [{"page": 39}]},
+        {"statement_type": "cashflow", "concept": "operating_cash_flow", "value": 205.0, "currency": "USD", "evidence": [{"page": 43}]},
+        {"statement_type": "cashflow", "concept": "capex", "value": -58.0, "currency": "USD", "evidence": [{"page": 43}]}
+      ],
+      "expected_notes": ["accounting_policy", "contingency"],
+      "expected_risk_categories": ["audit_governance"]
+    },
+    {
+      "case_id": "us10q-consumer-001",
+      "company": "US Consumer Co D",
+      "ticker": "UCD",
+      "filing_type": "10-Q",
+      "period_end": "2026-06-30",
+      "source": {
+        "type": "pdf",
+        "path": "../private/us_filings/us10q-consumer-001.pdf",
+        "license": "local-private"
+      },
+      "expected_facts": [
+        {"statement_type": "income", "concept": "revenue", "value": 540.0, "currency": "USD", "evidence": [{"page": 11}]},
+        {"statement_type": "income", "concept": "gross_profit", "value": 210.0, "currency": "USD", "evidence": [{"page": 11}]},
+        {"statement_type": "income", "concept": "operating_income", "value": 64.0, "currency": "USD", "evidence": [{"page": 11}]},
+        {"statement_type": "income", "concept": "net_income", "value": 39.0, "currency": "USD", "evidence": [{"page": 11}]},
+        {"statement_type": "balance", "concept": "total_assets", "value": 980.0, "currency": "USD", "evidence": [{"page": 9}]},
+        {"statement_type": "balance", "concept": "total_liabilities", "value": 470.0, "currency": "USD", "evidence": [{"page": 9}]},
+        {"statement_type": "balance", "concept": "total_equity", "value": 510.0, "currency": "USD", "evidence": [{"page": 9}]},
+        {"statement_type": "balance", "concept": "cash_and_equivalents", "value": 76.0, "currency": "USD", "evidence": [{"page": 9}]},
+        {"statement_type": "cashflow", "concept": "operating_cash_flow", "value": 67.0, "currency": "USD", "evidence": [{"page": 13}]},
+        {"statement_type": "cashflow", "concept": "capex", "value": -19.0, "currency": "USD", "evidence": [{"page": 13}]}
+      ],
+      "expected_notes": ["other"],
+      "expected_risk_categories": []
+    }
+  ]
+}

@@ -1,12 +1,22 @@
 {
   "schema_version": 1,
-  "description": "Initial non-regression thresholds for the synthetic golden suite. Tighten these as extraction quality improves.",
+  "description": "Non-regression thresholds for the synthetic golden suite, including key fact accuracy gates. Tighten these as extraction quality improves.",
   "min_metrics": {
     "n_cases": 5,
     "avg_source_ref_completeness": 1.0,
-    "avg_signal_category_recall": 0.8,
+    "avg_signal_category_recall": 0.9,
     "avg_note_type_recall": 0.6,
-    "avg_fact_value_accuracy": 0.08,
-    "avg_fact_source_ref_completeness": 0.34
+    "avg_fact_value_accuracy": 0.96,
+    "avg_fact_source_ref_completeness": 0.9,
+    "fact_accuracy_revenue": 1.0,
+    "fact_accuracy_gross_profit": 1.0,
+    "fact_accuracy_operating_income": 1.0,
+    "fact_accuracy_net_income": 1.0,
+    "fact_accuracy_total_assets": 1.0,
+    "fact_accuracy_total_liabilities": 0.75,
+    "fact_accuracy_total_equity": 1.0,
+    "fact_accuracy_operating_cash_flow": 1.0,
+    "fact_accuracy_capex": 0.5,
+    "fact_accuracy_cash_and_equivalents": 1.0
   }
 }

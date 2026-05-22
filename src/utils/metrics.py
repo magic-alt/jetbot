@@ -6,6 +6,27 @@ from typing import Any
 from src.schemas.models import FinancialFact, FinancialStatement, KeyNote, RiskSignal
 
 
+CONCEPT_ALIASES: dict[str, tuple[str, ...]] = {
+    "operating_cash_flow": ("operating_cash_flow", "operating_cf"),
+    "operating_cf": ("operating_cf", "operating_cash_flow"),
+}
+
+
+def concept_aliases(concept: str) -> tuple[str, ...]:
+    return CONCEPT_ALIASES.get(concept, (concept,))
+
+
+def _lookup_statement_value(statement: FinancialStatement, concept: str) -> float | None:
+    for alias in concept_aliases(concept):
+        actual_val = statement.totals.get(alias)
+        if actual_val is not None:
+            return actual_val
+    for item in statement.line_items:
+        if item.name_norm in concept_aliases(concept) and item.value_current is not None:
+            return item.value_current
+    return None
+
+
 def statement_accuracy(
     actual: FinancialStatement,
     expected_totals: dict[str, float],
@@ -24,14 +45,7 @@ def statement_accuracy(
     missing: list[str] = []
 
     for key, expected_val in expected_totals.items():
-        actual_val = actual.totals.get(key)
-        if actual_val is None:
-            # Also check line_items by name_norm
-            for item in actual.line_items:
-                if item.name_norm == key and item.value_current is not None:
-                    actual_val = item.value_current
-                    break
-
+        actual_val = _lookup_statement_value(actual, key)
         if actual_val is None:
             missing.append(key)
             continue
@@ -143,8 +157,9 @@ def fact_value_accuracy(
     """
     indexed: dict[str, FinancialFact] = {}
     for fact in actual_facts:
-        indexed.setdefault(fact.concept, fact)
-        indexed[f"{fact.statement_type}:{fact.concept}"] = fact
+        for alias in concept_aliases(fact.concept):
+            indexed.setdefault(alias, fact)
+            indexed[f"{fact.statement_type}:{alias}"] = fact
 
     matched: list[str] = []
     mismatched: list[dict[str, Any]] = []
