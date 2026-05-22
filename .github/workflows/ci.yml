@@ -82,7 +82,6 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     needs: [lint-and-test, web-build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
