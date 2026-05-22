@@ -137,6 +137,7 @@ _AuthDep = Annotated[None, Depends(verify_api_key)]
 @router.post("/documents")
 async def create_document(
     _auth: _AuthDep,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     company: str | None = Form(default=None),
     period_end: str | None = Form(default=None),
@@ -179,7 +180,7 @@ async def create_document(
     )
     store.save_meta(doc_id, meta)
     task_store.create(doc_id)
-    return _ok({"doc_id": doc_id, "status": "queued"})
+    return _ok(_start_analysis(meta, raw_path, background_tasks))
 
 
 @router.get("/agent/capabilities")
@@ -200,16 +201,36 @@ async def analyze_document(
     if not pdf_path.exists():
         return _err("not_found", "PDF not found")
 
+    return _ok(_start_analysis(meta, pdf_path, background_tasks))
+
+
+def _start_analysis(meta: DocumentMeta, pdf_path: Path, background_tasks: BackgroundTasks) -> dict[str, Any]:
+    current = task_store.get(meta.doc_id)
+    if current is None:
+        current = task_store.create(meta.doc_id)
+    elif current["status"] == "running":
+        return current
+
     from src.tasks import is_celery_backend
 
-    if is_celery_backend():
-        from src.tasks.analysis import run_analysis
+    try:
+        if is_celery_backend():
+            from src.tasks.analysis import run_analysis
 
-        run_analysis.delay(doc_id, str(pdf_path), meta.model_dump(mode="json"))
-    else:
-        background_tasks.add_task(_run_analysis, meta, str(pdf_path))
-    task_store.update(doc_id, status="running", progress=5)
-    return _ok(task_store.get(doc_id))
+            run_analysis.delay(meta.doc_id, str(pdf_path), meta.model_dump(mode="json"))
+        else:
+            background_tasks.add_task(_run_analysis, meta, str(pdf_path))
+    except Exception as exc:
+        task_store.update(meta.doc_id, status="failed", progress=100, current_node=None, error_message=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "ok": False,
+                "data": None,
+                "error": {"code": "analysis_start_failed", "message": f"Unable to start analysis: {exc}"},
+            },
+        ) from exc
+    return task_store.update(meta.doc_id, status="running", progress=5, current_node=None, error_message=None)
 
 
 @router.get("/documents/{doc_id}")

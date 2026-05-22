@@ -132,7 +132,20 @@ def test_list_enriches_missing_metadata_from_pages(client: TestClient, tmp_path:
     assert saved["company"] == "Apple Inc."
 
 
-def test_upload_endpoint_creates_doc_layout(client: TestClient, tmp_path: Path) -> None:
+def test_upload_endpoint_creates_doc_layout(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.api.routes as routes_mod
+
+    def fake_start_analysis(meta: object, pdf_path: Path, background_tasks: object) -> dict[str, object]:
+        return {
+            "doc_id": getattr(meta, "doc_id"),
+            "status": "running",
+            "progress": 5,
+            "current_node": None,
+            "error_message": None,
+        }
+
+    monkeypatch.setattr(routes_mod, "_start_analysis", fake_start_analysis)
+
     r = client.post(
         "/v1/documents",
         files={"file": ("demo.pdf", b"%PDF-1.4\n%fake upload\n%%EOF\n", "application/pdf")},
@@ -142,7 +155,7 @@ def test_upload_endpoint_creates_doc_layout(client: TestClient, tmp_path: Path) 
     assert r.status_code == 200
     body = r.json()
     assert body["ok"] is True
-    assert body["data"]["status"] == "queued"
+    assert body["data"]["status"] == "running"
 
     doc_id = body["data"]["doc_id"]
     doc_dir = tmp_path / "data" / doc_id

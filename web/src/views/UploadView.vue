@@ -18,7 +18,6 @@ async function uploadHandler(opts: UploadRequestOptions) {
       language: language.value === 'auto' ? undefined : language.value,
       ocr: useOcr.value || undefined,
     })
-    await docsApi.analyze(created.doc_id)
     lastDocId.value = created.doc_id
     ElMessage.success(`已创建并启动分析任务: ${created.doc_id}`)
     opts.onSuccess?.(created)
