@@ -266,6 +266,14 @@ async def get_statements(_auth: _AuthDep, doc_id: str):
     return _ok(data)
 
 
+@router.get("/documents/{doc_id}/facts")
+async def get_facts(_auth: _AuthDep, doc_id: str):
+    data = store.load_json(doc_id, "extracted/facts.json")
+    if data is None:
+        return _err("not_found", "Facts not found")
+    return _ok(data)
+
+
 @router.get("/documents/{doc_id}/notes")
 async def get_notes(_auth: _AuthDep, doc_id: str):
     data = store.load_json(doc_id, "extracted/notes.json")
@@ -522,6 +530,8 @@ def _save_partial_results(doc_id: str) -> None:
             s.save_json(doc_id, "extracted/tables.json", [t.model_dump() for t in partial.tables])
         if partial.statements:
             s.save_json(doc_id, "extracted/statements.json", {k: v.model_dump() for k, v in partial.statements.items()})
+        if partial.facts:
+            s.save_json(doc_id, "extracted/facts.json", [fact.model_dump(mode="json") for fact in partial.facts])
         if partial.notes:
             s.save_json(doc_id, "extracted/notes.json", [n.model_dump() for n in partial.notes])
         if partial.risk_signals:

@@ -1,11 +1,16 @@
 // ── API response types (mirror src/finance/schemas.py & src/schemas/models.py)
 
 export interface SourceRef {
+  ref_type?: 'page_text' | 'table' | 'image' | string
   page: number
   table_id?: string | null
+  row?: number | null
+  col?: number | null
   bbox?: [number, number, number, number] | null
   quote?: string | null
   confidence?: number
+  engine?: string | null
+  artifact_path?: string | null
 }
 
 export interface MetricItem {
@@ -23,6 +28,25 @@ export interface FinancialStatements {
   balance_sheet?: MetricItem[]
   cash_flow?: MetricItem[]
   [k: string]: MetricItem[] | undefined
+}
+
+export interface FinancialFact {
+  fact_id: string
+  doc_id: string
+  statement_type: 'income' | 'balance' | 'cashflow' | 'note' | 'other' | string
+  concept: string
+  label: string
+  value?: number | null
+  unit?: string | null
+  scale?: number | null
+  currency?: string | null
+  period_start?: string | null
+  period_end?: string | null
+  period_type?: 'instant' | 'duration' | 'unknown' | string
+  source_refs: SourceRef[]
+  confidence: number
+  extraction_engine?: string | null
+  metadata?: Record<string, unknown>
 }
 
 export interface RiskSignal {
@@ -70,6 +94,9 @@ export interface TableCell {
   text: string
   rowspan?: number
   colspan?: number
+  bbox?: [number, number, number, number] | null
+  confidence?: number | null
+  engine?: string | null
 }
 
 export interface ExtractedTable {
