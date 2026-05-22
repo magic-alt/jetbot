@@ -62,6 +62,7 @@ onBeforeUnmount(() => {
 
 const src = computed(() => {
   const base = objectUrl.value
+  if (!base) return ''
   // PDF.js viewers in Chrome/Edge honor #page= anchors.
   return props.page ? `${base}#page=${props.page}` : base
 })
