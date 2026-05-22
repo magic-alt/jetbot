@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.schemas.models import FinancialStatement, KeyNote, RiskSignal
+from src.schemas.models import FinancialFact, FinancialStatement, KeyNote, RiskSignal
 
 
 def statement_accuracy(
@@ -122,6 +122,61 @@ def source_ref_completeness(notes: list[KeyNote], signals: list[RiskSignal]) -> 
     return with_refs / total
 
 
+def fact_source_ref_completeness(facts: list[FinancialFact]) -> float:
+    """Compute fraction of facts with at least one source reference."""
+    if not facts:
+        return 1.0
+    with_refs = sum(1 for fact in facts if fact.source_refs)
+    return with_refs / len(facts)
+
+
+def fact_value_accuracy(
+    actual_facts: list[FinancialFact],
+    expected_values: dict[str, float],
+    tolerance: float = 0.05,
+) -> dict[str, Any]:
+    """Compare canonical facts against expected values.
+
+    Expected keys may be either ``concept`` or ``statement_type:concept``.
+    The statement-qualified form avoids ambiguity when the same concept can
+    appear in different statements.
+    """
+    indexed: dict[str, FinancialFact] = {}
+    for fact in actual_facts:
+        indexed.setdefault(fact.concept, fact)
+        indexed[f"{fact.statement_type}:{fact.concept}"] = fact
+
+    matched: list[str] = []
+    mismatched: list[dict[str, Any]] = []
+    missing: list[str] = []
+
+    for key, expected_val in expected_values.items():
+        matched_fact = indexed.get(key)
+        if matched_fact is None or matched_fact.value is None:
+            missing.append(key)
+            continue
+        denominator = max(abs(expected_val), 1e-6)
+        diff_ratio = abs(matched_fact.value - expected_val) / denominator
+        if diff_ratio <= tolerance:
+            matched.append(key)
+        else:
+            mismatched.append({
+                "key": key,
+                "actual": matched_fact.value,
+                "expected": expected_val,
+                "diff_ratio": diff_ratio,
+            })
+
+    total_expected = len(expected_values)
+    accuracy = len(matched) / total_expected if total_expected else 1.0
+    return {
+        "matched": matched,
+        "mismatched": mismatched,
+        "missing": missing,
+        "accuracy": accuracy,
+    }
+
+
 def signal_category_recall(
     actual_categories: set[str],
     expected_categories: set[str],
@@ -171,6 +226,8 @@ def compute_golden_metrics(results: list[dict[str, Any]]) -> dict[str, Any]:
             "avg_statement_accuracy": 0.0,
             "balance_equation_pass_rate": 0.0,
             "avg_source_ref_completeness": 0.0,
+            "avg_fact_value_accuracy": 0.0,
+            "avg_fact_source_ref_completeness": 0.0,
             "avg_signal_category_recall": 0.0,
             "avg_note_type_recall": 0.0,
         }
@@ -178,6 +235,8 @@ def compute_golden_metrics(results: list[dict[str, Any]]) -> dict[str, Any]:
     statement_accuracies: list[float] = []
     statements_list: list[dict[str, FinancialStatement]] = []
     src_completeness_values: list[float] = []
+    fact_value_accuracies: list[float] = []
+    fact_src_completeness_values: list[float] = []
     signal_recalls: list[float] = []
     note_recalls: list[float] = []
 
@@ -185,7 +244,9 @@ def compute_golden_metrics(results: list[dict[str, Any]]) -> dict[str, Any]:
         statements = r.get("statements", {})
         notes = r.get("notes", [])
         risk_signals = r.get("risk_signals", [])
+        facts = r.get("facts", [])
         expected_totals = r.get("expected_totals", {})
+        expected_facts = r.get("expected_facts", {})
         expected_note_types = r.get("expected_note_types", set())
         expected_signal_categories = r.get("expected_signal_categories", set())
 
@@ -198,6 +259,10 @@ def compute_golden_metrics(results: list[dict[str, Any]]) -> dict[str, Any]:
         statements_list.append(statements)
 
         src_completeness_values.append(source_ref_completeness(notes, risk_signals))
+        if expected_facts:
+            fact_value_accuracies.append(fact_value_accuracy(facts, expected_facts)["accuracy"])
+        if facts:
+            fact_src_completeness_values.append(fact_source_ref_completeness(facts))
 
         actual_categories = {s.category for s in risk_signals}
         signal_recalls.append(signal_category_recall(actual_categories, expected_signal_categories))
@@ -217,6 +282,16 @@ def compute_golden_metrics(results: list[dict[str, Any]]) -> dict[str, Any]:
         "avg_source_ref_completeness": (
             sum(src_completeness_values) / len(src_completeness_values)
             if src_completeness_values
+            else 0.0
+        ),
+        "avg_fact_value_accuracy": (
+            sum(fact_value_accuracies) / len(fact_value_accuracies)
+            if fact_value_accuracies
+            else 0.0
+        ),
+        "avg_fact_source_ref_completeness": (
+            sum(fact_src_completeness_values) / len(fact_src_completeness_values)
+            if fact_src_completeness_values
             else 0.0
         ),
         "avg_signal_category_recall": (

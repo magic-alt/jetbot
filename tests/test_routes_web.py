@@ -226,6 +226,41 @@ def test_tables_endpoint(client: TestClient, tmp_path: Path) -> None:
     assert body["data"][0]["table_id"] == "p1_t1"
 
 
+def test_facts_endpoint(client: TestClient, tmp_path: Path) -> None:
+    _make_doc(tmp_path / "data", "abc123")
+    facts_path = tmp_path / "data" / "abc123" / "extracted" / "facts.json"
+    facts_path.write_text(
+        json.dumps(
+            [
+                {
+                    "fact_id": "fact-1",
+                    "doc_id": "abc123",
+                    "statement_type": "income",
+                    "concept": "revenue",
+                    "label": "Revenue",
+                    "value": 100.0,
+                    "source_refs": [{"ref_type": "table", "page": 1, "table_id": "p1_t1", "confidence": 0.8}],
+                    "confidence": 0.8,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    r = client.get("/v1/documents/abc123/facts")
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True
+    assert body["data"][0]["concept"] == "revenue"
+
+
+def test_facts_missing_returns_404(client: TestClient, tmp_path: Path) -> None:
+    _make_doc(tmp_path / "data", "abc123")
+    r = client.get("/v1/documents/abc123/facts")
+    assert r.status_code == 404
+
+
 def test_tables_missing_returns_404(client: TestClient, tmp_path: Path) -> None:
     _make_doc(tmp_path / "data", "abc123", with_tables=False)
     r = client.get("/v1/documents/abc123/tables")

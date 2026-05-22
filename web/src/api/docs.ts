@@ -7,6 +7,7 @@ import type {
   DeepAnalysisResult,
   ExtractedPage,
   ExtractedTable,
+  FinancialFact,
   FinancialStatements,
   KeyNote,
   MetricItem,
@@ -22,10 +23,15 @@ function normalizeSourceRef(raw: any): SourceRef {
   const page = Number(raw.page)
   return {
     page: Number.isFinite(page) && page > 0 ? page : 1,
+    ref_type: raw.ref_type ?? undefined,
     table_id: raw.table_id ?? null,
+    row: typeof raw.row === 'number' ? raw.row : null,
+    col: typeof raw.col === 'number' ? raw.col : null,
     bbox: raw.bbox ?? null,
     quote: raw.quote ?? null,
     confidence: typeof raw.confidence === 'number' ? raw.confidence : undefined,
+    engine: raw.engine ?? null,
+    artifact_path: raw.artifact_path ?? null,
   }
 }
 
@@ -175,6 +181,9 @@ export const docsApi = {
   },
   statements(docId: string) {
     return unwrap<any>(http.get(`/v1/documents/${docId}/statements`)).then(normalizeStatements)
+  },
+  facts(docId: string) {
+    return unwrap<FinancialFact[]>(http.get(`/v1/documents/${docId}/facts`))
   },
   riskSignals(docId: string) {
     return unwrap<any>(http.get(`/v1/documents/${docId}/risk-signals`)).then(normalizeSignals)
