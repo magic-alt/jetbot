@@ -15,7 +15,7 @@ from src.finance.facts import facts_from_statements
 from src.finance.normalizer import normalize_account_name
 from src.finance.signals import generate_signals
 from src.finance.utils import table_rows
-from src.finance.validators import validate_statements
+from src.finance.validators import validate_facts, validate_statements
 from src.llm.base import StructuredPromptRequest, get_default_llm_client, get_llm_client, get_llm_model_config, langsmith_metadata
 from src.pdf.extractor import PDFExtractor
 from src.pdf.tables import extract_tables as extract_tables_from_pdf
@@ -259,11 +259,15 @@ def extract_financial_statements(state: AgentState) -> AgentState:
 
 def validate_and_reconcile(state: AgentState) -> AgentState:
     start_ms = monotonic_ms()
+    if not state.facts:
+        state.facts = facts_from_statements(state.doc_meta, state.statements)
     state.validation_results = validate_statements(state.statements)
+    state.fact_validation_results = validate_facts(state.doc_meta, state.facts, state.statements)
     severe = any(
         issue in {"balance_equation_failed", "balance_missing_totals"} or issue.startswith("unit_mismatch")
         for issue in state.validation_results.get("issues", [])
     )
+    severe = severe or any(issue.severity == "high" for issue in (state.fact_validation_results.issues if state.fact_validation_results else []))
     # Remove any previous validation_failed entries before deciding, ensuring idempotency
     state.errors = [err for err in state.errors if err != "validation_failed"]
     if severe:
@@ -559,8 +563,14 @@ def finalize(state: AgentState) -> AgentState:
     store.save_json(state.doc_meta.doc_id, "extracted/tables.json", [t.model_dump() for t in state.tables])
     store.save_json(state.doc_meta.doc_id, "extracted/statements.json", {k: v.model_dump() for k, v in state.statements.items()})
     if not state.facts:
-        state.facts = facts_from_statements(state.doc_meta.doc_id, state.statements)
+        state.facts = facts_from_statements(state.doc_meta, state.statements)
     store.save_json(state.doc_meta.doc_id, "extracted/facts.json", [fact.model_dump(mode="json") for fact in state.facts])
+    if state.fact_validation_results:
+        store.save_json(
+            state.doc_meta.doc_id,
+            "extracted/fact_validation.json",
+            state.fact_validation_results.model_dump(mode="json"),
+        )
     if state.corrections:
         store.save_json(
             state.doc_meta.doc_id,

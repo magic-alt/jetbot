@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from src.finance.facts import apply_corrections, facts_from_statements
-from src.schemas.models import Correction, FinancialStatement, SourceRef, StatementLineItem
+from src.schemas.models import Correction, DocumentMeta, FinancialStatement, SourceRef, StatementLineItem
 
 
 def test_facts_from_statements_preserves_line_item_evidence() -> None:
@@ -35,13 +35,28 @@ def test_facts_from_statements_preserves_line_item_evidence() -> None:
         extraction_confidence=0.7,
     )
 
-    facts = facts_from_statements("doc-1", {"income": statement})
+    facts = facts_from_statements(
+        DocumentMeta(
+            doc_id="doc-1",
+            filename="demo.pdf",
+            company="ACME Corp",
+            ticker="ACME",
+            cik="00001234",
+            filing_type="10-K",
+        ),
+        {"income": statement},
+    )
 
     assert len(facts) == 1
     fact = facts[0]
     assert fact.doc_id == "doc-1"
+    assert fact.company == "ACME Corp"
+    assert fact.ticker == "ACME"
+    assert fact.cik == "00001234"
+    assert fact.filing_type == "10-K"
     assert fact.statement_type == "income"
     assert fact.concept == "revenue"
+    assert fact.raw_label == "Revenue"
     assert fact.value == 100.0
     assert fact.period_type == "duration"
     assert fact.scale == 1_000_000.0
@@ -86,3 +101,17 @@ def test_apply_corrections_updates_allowed_fact_field() -> None:
 
     assert corrected[0].value == 125.0
     assert fact.value == 100.0
+
+
+def test_facts_from_statements_uses_report_type_as_filing_type_fallback() -> None:
+    statement = FinancialStatement(
+        statement_type="balance",
+        line_items=[StatementLineItem(name_raw="Total assets", name_norm="total_assets", value_current=500.0)],
+    )
+
+    facts = facts_from_statements(
+        DocumentMeta(doc_id="doc-2", filename="demo.pdf", report_type="annual-report"),
+        {"balance": statement},
+    )
+
+    assert facts[0].filing_type == "annual-report"
