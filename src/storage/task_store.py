@@ -85,6 +85,9 @@ class TaskStore:
 
     def get(self, doc_id: str) -> dict[str, Any] | None:
         with self._lock:
+            # Long-lived API connections can otherwise keep reading an old WAL
+            # snapshot after the worker updates the same tasks.db file.
+            self._conn.rollback()
             row = self._conn.execute(
                 "SELECT doc_id, status, progress, current_node, error_message FROM tasks WHERE doc_id = ?", (doc_id,)
             ).fetchone()
