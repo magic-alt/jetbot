@@ -8,18 +8,23 @@ from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
+from src.agent.adapters.hermes import get_hermes_agent_client
+from src.agent.context import build_analysis_context as build_analysis_context_payload
 from src.agent.state import AgentState
 from src.finance.normalizer import normalize_account_name
 from src.finance.signals import generate_signals
 from src.finance.utils import table_rows
 from src.finance.validators import validate_statements
-from src.llm.base import StructuredPromptRequest, get_default_llm_client, langsmith_metadata
+from src.llm.base import StructuredPromptRequest, get_default_llm_client, get_llm_client, get_llm_model_config, langsmith_metadata
 from src.pdf.extractor import PDFExtractor
 from src.pdf.tables import extract_tables as extract_tables_from_pdf
 from src.schemas.models import (
+    AgentRun,
     Chunk,
+    DeepAnalysisResult,
     FinancialStatement,
     KeyNote,
+    ModelInvocation,
     Page,
     RiskSignal,
     SourceRef,
@@ -32,6 +37,7 @@ from src.storage.vector_index import build_rag_index
 from src.utils.ids import new_doc_id
 from src.utils.logging import get_logger, log_node
 from src.utils.time import monotonic_ms
+from src.utils.time import utc_now
 
 
 logger = get_logger(__name__)
@@ -388,6 +394,31 @@ def generate_risk_signals(state: AgentState) -> AgentState:
     return state
 
 
+def build_analysis_context_node(state: AgentState) -> AgentState:
+    start_ms = monotonic_ms()
+    state.analysis_context = build_analysis_context_payload(state)
+    state.debug["analysis_context_sources"] = len(state.analysis_context.sources)
+    state.debug["analysis_context_tokens"] = state.analysis_context.tokens_estimate
+    log_node(logger, state.doc_meta.doc_id, "build_analysis_context", start_ms)
+    return state
+
+
+def run_deep_analysis(state: AgentState) -> AgentState:
+    start_ms = monotonic_ms()
+    if state.analysis_context is None:
+        state.analysis_context = build_analysis_context_payload(state)
+
+    result = _try_hermes_deep_analysis(state)
+    if result is None:
+        result = _run_llm_deep_analysis(state)
+
+    state.deep_analysis = result
+    state.debug["deep_analysis_findings"] = len(result.findings)
+    state.debug["deep_analysis_provider"] = result.provider
+    log_node(logger, state.doc_meta.doc_id, "run_deep_analysis", start_ms)
+    return state
+
+
 def build_trader_report(state: AgentState) -> AgentState:
     start_ms = monotonic_ms()
     system = _load_prompt("trader_report_prompt.md")
@@ -405,6 +436,7 @@ def build_trader_report(state: AgentState) -> AgentState:
             "Validation JSON:\n{validation_results}\n"
             "Risk signals JSON:\n{risk_signals}\n"
             "Notes JSON:\n{notes}\n"
+            "Deep analysis JSON:\n{deep_analysis}\n"
             "Retrieved context:\n{context}\n"
             "Current numbers snapshot JSON:\n{numbers_snapshot}\n"
             "Return a concise report object with fields: executive_summary, key_drivers, "
@@ -415,6 +447,7 @@ def build_trader_report(state: AgentState) -> AgentState:
             "validation_results": json.dumps(state.validation_results, ensure_ascii=False),
             "risk_signals": json.dumps([s.model_dump() for s in state.risk_signals], ensure_ascii=False),
             "notes": json.dumps([n.model_dump() for n in state.notes], ensure_ascii=False),
+            "deep_analysis": state.deep_analysis.model_dump_json() if state.deep_analysis else "{}",
             "context": context,
             "numbers_snapshot": json.dumps(snapshot, ensure_ascii=False),
         },
@@ -447,6 +480,7 @@ def build_trader_report(state: AgentState) -> AgentState:
                     "Outputs depend on PDF extraction quality.",
                 ]
                 + draft.limitations
+                + (state.deep_analysis.limitations if state.deep_analysis else [])
             )
         ),
     )
@@ -523,6 +557,24 @@ def finalize(state: AgentState) -> AgentState:
     store.save_json(state.doc_meta.doc_id, "extracted/statements.json", {k: v.model_dump() for k, v in state.statements.items()})
     store.save_json(state.doc_meta.doc_id, "extracted/notes.json", [n.model_dump() for n in state.notes])
     store.save_json(state.doc_meta.doc_id, "extracted/risk_signals.json", [s.model_dump() for s in state.risk_signals])
+    if state.analysis_context:
+        store.save_json(
+            state.doc_meta.doc_id,
+            "extracted/analysis_context.json",
+            state.analysis_context.model_dump(mode="json"),
+        )
+    if state.deep_analysis:
+        store.save_json(
+            state.doc_meta.doc_id,
+            "extracted/deep_analysis.json",
+            state.deep_analysis.model_dump(mode="json"),
+        )
+    if state.agent_runs:
+        store.save_json(
+            state.doc_meta.doc_id,
+            "extracted/agent_runs.json",
+            [run.model_dump(mode="json") for run in state.agent_runs],
+        )
     if state.event_study_results:
         store.save_json(
             state.doc_meta.doc_id,
@@ -825,6 +877,143 @@ def _parse_number(value: str | None) -> float | None:
 def _load_prompt(name: str) -> str:
     path = Path(__file__).resolve().parent.parent / "prompts" / name
     return path.read_text(encoding="utf-8")
+
+
+def _try_hermes_deep_analysis(state: AgentState) -> DeepAnalysisResult | None:
+    client = get_hermes_agent_client()
+    if client is None or state.analysis_context is None:
+        return None
+
+    start_ms = monotonic_ms()
+    started_at = utc_now()
+    provider = "hermes"
+    model = os.getenv("HERMES_AGENT_MODEL", "hermes-agent")
+    try:
+        result = client.analyze(state.analysis_context, task="deep_analysis")
+        elapsed_ms = monotonic_ms() - start_ms
+        result.doc_id = state.doc_meta.doc_id
+        result.provider = result.provider or provider
+        result.model = result.model or model
+        invocation = ModelInvocation(
+            provider=provider,
+            model=model,
+            task="deep_analysis",
+            status="succeeded",
+            elapsed_ms=elapsed_ms,
+            metadata={"adapter": "hermes_http"},
+        )
+        result.invocations.append(invocation)
+        state.agent_runs.append(
+            AgentRun(
+                run_id=new_doc_id(),
+                doc_id=state.doc_meta.doc_id,
+                node_name="run_deep_analysis",
+                provider=provider,
+                model=model,
+                status="succeeded",
+                started_at=started_at,
+                completed_at=utc_now(),
+                elapsed_ms=elapsed_ms,
+                metadata={"adapter": "hermes_http"},
+            )
+        )
+        return result
+    except Exception as exc:
+        elapsed_ms = monotonic_ms() - start_ms
+        state.errors.append(f"hermes_deep_analysis_failed:{exc}")
+        state.agent_runs.append(
+            AgentRun(
+                run_id=new_doc_id(),
+                doc_id=state.doc_meta.doc_id,
+                node_name="run_deep_analysis",
+                provider=provider,
+                model=model,
+                status="failed",
+                started_at=started_at,
+                completed_at=utc_now(),
+                elapsed_ms=elapsed_ms,
+                error=str(exc),
+                metadata={"adapter": "hermes_http"},
+            )
+        )
+        return None
+
+
+def _run_llm_deep_analysis(state: AgentState) -> DeepAnalysisResult:
+    assert state.analysis_context is not None
+    config = get_llm_model_config("deep_analysis")
+    start_ms = monotonic_ms()
+    started_at = utc_now()
+    system = _load_prompt("deep_analysis_prompt.md")
+    request = StructuredPromptRequest(
+        system_template=system,
+        user_template=(
+            "Provider metadata: {provider}:{model}\n"
+            "Analyze this structured AnalysisContext JSON. Return a DeepAnalysisResult object.\n"
+            "AnalysisContext JSON:\n{analysis_context}\n"
+        ),
+        input_values={
+            "provider": config.provider,
+            "model": config.model,
+            "analysis_context": state.analysis_context.model_dump_json(),
+        },
+        output_model=DeepAnalysisResult,
+    )
+
+    status = "succeeded"
+    error: str | None = None
+    try:
+        result = get_llm_client("deep_analysis").invoke_structured(
+            request,
+            run_name="run_deep_analysis",
+            tags=["financial-report-agent", "deep-analysis"],
+            metadata=langsmith_metadata(state.doc_meta.doc_id, "run_deep_analysis"),
+        )
+    except Exception as exc:
+        status = "failed"
+        error = str(exc)
+        state.errors.append(f"deep_analysis_llm_failed:{exc}")
+        result = DeepAnalysisResult(
+            doc_id=state.doc_meta.doc_id,
+            provider=config.provider,
+            model=config.model,
+            summary="Deep analysis is unavailable for this run.",
+            findings=[],
+            limitations=["Deep analysis provider failed; base extraction artifacts remain available."],
+        )
+
+    elapsed_ms = monotonic_ms() - start_ms
+    result.doc_id = state.doc_meta.doc_id
+    result.provider = config.provider
+    result.model = config.model
+    invocation = ModelInvocation(
+        provider=config.provider,
+        model=config.model,
+        task="deep_analysis",
+        status=status,  # type: ignore[arg-type]
+        elapsed_ms=elapsed_ms,
+        error=error,
+        metadata={"source": config.source},
+    )
+    result.invocations.append(invocation)
+    if not result.findings and status == "succeeded":
+        result.limitations.append("Deep analysis returned no findings.")
+    state.agent_runs.append(
+        AgentRun(
+            run_id=new_doc_id(),
+            doc_id=state.doc_meta.doc_id,
+            node_name="run_deep_analysis",
+            provider=config.provider,
+            model=config.model,
+            status=status,  # type: ignore[arg-type]
+            started_at=started_at,
+            completed_at=utc_now(),
+            elapsed_ms=elapsed_ms,
+            error=error,
+            metadata={"source": config.source},
+        )
+    )
+    return result
 
 
 def _llm_statement(state: AgentState, kind: str, *, retry_context: str = "") -> FinancialStatement:
@@ -1131,6 +1320,13 @@ def _render_markdown_report(state: AgentState) -> str:
         lines.append(f"- {signal.title} ({signal.severity}): {signal.description}")
         for ref in signal.evidence:
             lines.append(f"  - Evidence: page {ref.page} ({ref.ref_type}) {ref.quote or ''}")
+
+    if state.deep_analysis:
+        lines.extend(["", "## Deep Analysis", state.deep_analysis.summary])
+        for finding in state.deep_analysis.findings:
+            lines.append(f"- {finding.title} ({finding.severity}): {finding.summary}")
+            for ref in finding.evidence:
+                lines.append(f"  - Evidence: page {ref.page} ({ref.ref_type}) {ref.quote or ''}")
 
     lines.extend(["", "## Notes"])
     for note in report.notes:

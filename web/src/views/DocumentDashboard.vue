@@ -4,6 +4,9 @@ import { useRoute } from 'vue-router'
 import { docsApi } from '@/api/docs'
 import type {
   DocumentListItem,
+  AgentCapability,
+  AgentRun,
+  DeepAnalysisResult,
   ExtractedTable,
   FinancialStatements,
   KeyNote,
@@ -18,6 +21,7 @@ import TablesPanel from '@/components/TablesPanel.vue'
 import RiskSignalsPanel from '@/components/RiskSignalsPanel.vue'
 import NotesPanel from '@/components/NotesPanel.vue'
 import ReportPanel from '@/components/ReportPanel.vue'
+import AgentInsightsPanel from '@/components/AgentInsightsPanel.vue'
 
 const route = useRoute()
 const docId = computed(() => String(route.params.docId))
@@ -27,6 +31,9 @@ const statements = ref<FinancialStatements | null>(null)
 const signals = ref<RiskSignal[]>([])
 const notes = ref<KeyNote[]>([])
 const tables = ref<ExtractedTable[]>([])
+const deepAnalysis = ref<DeepAnalysisResult | null>(null)
+const agentRuns = ref<AgentRun[]>([])
+const capabilities = ref<AgentCapability[]>([])
 const reportMd = ref<string>('')
 const errors = ref<Record<string, string>>({})
 const activeTab = ref('overview')
@@ -40,6 +47,14 @@ async function loadDetail() {
   }
 }
 
+async function loadCapabilities() {
+  try {
+    capabilities.value = await docsApi.capabilities()
+  } catch {
+    capabilities.value = []
+  }
+}
+
 async function loadAll() {
   await loadDetail()
   await Promise.all([
@@ -47,6 +62,8 @@ async function loadAll() {
     docsApi.riskSignals(docId.value).then((d) => (signals.value = d || [])).catch(() => null),
     docsApi.notes(docId.value).then((d) => (notes.value = d || [])).catch(() => null),
     docsApi.tables(docId.value).then((d) => (tables.value = d || [])).catch(() => null),
+    docsApi.deepAnalysis(docId.value).then((d) => (deepAnalysis.value = d)).catch(() => (deepAnalysis.value = null)),
+    docsApi.agentRuns(docId.value).then((d) => (agentRuns.value = d || [])).catch(() => (agentRuns.value = [])),
     docsApi
       .reportMd(docId.value)
       .then((d) => (reportMd.value = d))
@@ -66,7 +83,7 @@ const polling = usePolling(async () => {
 }, 2500)
 
 onMounted(async () => {
-  await loadDetail()
+  await Promise.all([loadDetail(), loadCapabilities()])
   if (isFinal.value) {
     await loadAll()
   } else {
@@ -81,8 +98,10 @@ watch(() => docId.value, async () => {
   signals.value = []
   notes.value = []
   tables.value = []
+  deepAnalysis.value = null
+  agentRuns.value = []
   reportMd.value = ''
-  await loadDetail()
+  await Promise.all([loadDetail(), loadCapabilities()])
   if (isFinal.value) await loadAll()
   else polling.start()
 })
@@ -164,6 +183,14 @@ function jumpToPage(page: number) {
             </el-tab-pane>
             <el-tab-pane :label="`关键注释 (${notes.length})`" name="notes">
               <NotesPanel :notes="notes" @jump-page="jumpToPage" />
+            </el-tab-pane>
+            <el-tab-pane :label="`智能洞察 (${deepAnalysis?.findings.length || 0})`" name="agent">
+              <AgentInsightsPanel
+                :deep-analysis="deepAnalysis"
+                :agent-runs="agentRuns"
+                :capabilities="capabilities"
+                @jump-page="jumpToPage"
+              />
             </el-tab-pane>
             <el-tab-pane label="分析报告" name="report">
               <ReportPanel :doc-id="docId" :markdown="reportMd" />

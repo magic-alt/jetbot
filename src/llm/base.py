@@ -46,6 +46,13 @@ class StructuredPromptRequest:
     output_schema: dict[str, Any] | None = None
 
 
+@dataclass(slots=True, frozen=True)
+class LLMModelConfig:
+    provider: str
+    model: str
+    source: str
+
+
 _logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -56,7 +63,9 @@ _client_cache: dict[str, LLMClient] = {}
 
 def _build_client(provider: str, model: str) -> LLMClient:
     """Instantiate an LLM client for the given provider and model."""
-    cache_key = f"{provider}:{model}"
+    provider = provider.lower()
+    base_url = _provider_base_url(provider)
+    cache_key = f"{provider}:{model}:{base_url or ''}"
     if cache_key in _client_cache:
         return _client_cache[cache_key]
 
@@ -69,14 +78,15 @@ def _build_client(provider: str, model: str) -> LLMClient:
         else:
             from src.llm.anthropic_client import AnthropicLLMClient
             client = AnthropicLLMClient(api_key=api_key, model=model)
-    elif provider == "openai":
-        api_key = os.getenv("OPENAI_API_KEY", "")
-        if not api_key:
-            _logger.warning("openai_key_missing_fallback_mock")
+    elif provider in {"openai", "deepseek", "ollama"}:
+        api_key = _provider_api_key(provider)
+        if provider != "ollama" and not api_key:
+            _logger.warning("llm_key_missing_fallback_mock", extra={"provider": provider})
             client = MockLLMClient()
         else:
             from src.llm.openai_client import OpenAILLMClient
-            client = OpenAILLMClient(api_key=api_key, model=model)
+
+            client = OpenAILLMClient(api_key=api_key or "ollama", model=model, base_url=base_url)
     else:
         # "mock" or unknown provider
         client = MockLLMClient()
@@ -95,8 +105,43 @@ def _parse_provider_model(spec: str) -> tuple[str, str]:
         return "anthropic", spec
     if "mock" in lower:
         return "mock", spec
+    if "deepseek" in lower:
+        return "deepseek", spec
+    if "ollama" in lower:
+        return "ollama", spec
     # Default to openai
     return "openai", spec
+
+
+def _provider_api_key(provider: str) -> str:
+    if provider == "openai":
+        return os.getenv("OPENAI_API_KEY", "")
+    if provider == "deepseek":
+        return os.getenv("DEEPSEEK_API_KEY", "")
+    if provider == "ollama":
+        return os.getenv("OLLAMA_API_KEY", "ollama")
+    if provider == "anthropic":
+        return os.getenv("ANTHROPIC_API_KEY", "")
+    return ""
+
+
+def _provider_base_url(provider: str) -> str | None:
+    if provider == "openai":
+        return os.getenv("OPENAI_BASE_URL", "").strip() or None
+    if provider == "deepseek":
+        return os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").strip()
+    if provider == "ollama":
+        return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1").strip()
+    return None
+
+
+def is_llm_provider_configured(provider: str) -> bool:
+    provider = provider.lower()
+    if provider == "mock":
+        return True
+    if provider == "ollama":
+        return True
+    return bool(_provider_api_key(provider))
 
 
 # Task → env-var mapping for per-task model routing
@@ -104,7 +149,38 @@ _TASK_ENV_MAP: dict[str, str] = {
     "extraction": "LLM_EXTRACTION_MODEL",
     "report": "LLM_REPORT_MODEL",
     "validation": "LLM_VALIDATION_MODEL",
+    "deep_analysis": "LLM_DEEP_ANALYSIS_MODEL",
 }
+
+
+def get_llm_model_config(task: str | None = None) -> LLMModelConfig:
+    if task:
+        env_var = _TASK_ENV_MAP.get(task, f"LLM_{task.upper()}_MODEL")
+        spec = os.getenv(env_var, "")
+        if spec:
+            provider, model = _parse_provider_model(spec)
+            return LLMModelConfig(provider=provider, model=model, source=env_var)
+
+    default_spec = os.getenv("LLM_DEFAULT_MODEL", "")
+    if default_spec:
+        provider, model = _parse_provider_model(default_spec)
+        return LLMModelConfig(provider=provider, model=model, source="LLM_DEFAULT_MODEL")
+
+    if os.getenv("OPENAI_API_KEY", ""):
+        return LLMModelConfig(
+            provider="openai",
+            model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
+            source="OPENAI_API_KEY",
+        )
+
+    if os.getenv("ANTHROPIC_API_KEY", ""):
+        return LLMModelConfig(
+            provider="anthropic",
+            model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
+            source="ANTHROPIC_API_KEY",
+        )
+
+    return LLMModelConfig(provider="mock", model="mock", source="fallback")
 
 
 def get_llm_client(task: str | None = None) -> LLMClient:
@@ -116,33 +192,8 @@ def get_llm_client(task: str | None = None) -> LLMClient:
     3. Legacy ``OPENAI_API_KEY`` / ``OPENAI_MODEL`` combo
     4. ``MockLLMClient`` when no API key is found
     """
-    # 1. Check task-specific override
-    if task:
-        env_var = _TASK_ENV_MAP.get(task, f"LLM_{task.upper()}_MODEL")
-        spec = os.getenv(env_var, "")
-        if spec:
-            provider, model = _parse_provider_model(spec)
-            return _build_client(provider, model)
-
-    # 2. Check LLM_DEFAULT_MODEL
-    default_spec = os.getenv("LLM_DEFAULT_MODEL", "")
-    if default_spec and default_spec.lower() != "mock":
-        provider, model = _parse_provider_model(default_spec)
-        return _build_client(provider, model)
-
-    # 3. Legacy: OPENAI_API_KEY
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    if api_key:
-        model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
-        return _build_client("openai", model)
-
-    # 4. Anthropic fallback
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
-    if anthropic_key:
-        model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
-        return _build_client("anthropic", model)
-
-    return MockLLMClient()
+    config = get_llm_model_config(task)
+    return _build_client(config.provider, config.model)
 
 
 @functools.lru_cache(maxsize=1)

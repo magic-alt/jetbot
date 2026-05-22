@@ -1,6 +1,10 @@
 import { buildApiUrl, http, unwrap } from './client'
 import type {
   DocumentListItem,
+  AgentCapability,
+  AgentRun,
+  AnalysisFinding,
+  DeepAnalysisResult,
   ExtractedTable,
   FinancialStatements,
   KeyNote,
@@ -20,6 +24,7 @@ function normalizeSourceRef(raw: any): SourceRef {
     table_id: raw.table_id ?? null,
     bbox: raw.bbox ?? null,
     quote: raw.quote ?? null,
+    confidence: typeof raw.confidence === 'number' ? raw.confidence : undefined,
   }
 }
 
@@ -121,6 +126,34 @@ function normalizeTables(raw: any): ExtractedTable[] {
   return []
 }
 
+function normalizeFinding(raw: any, index: number): AnalysisFinding {
+  return {
+    finding_id: raw?.finding_id || raw?.id || `finding-${index + 1}`,
+    category: raw?.category || 'other',
+    title: raw?.title || raw?.summary || 'Untitled finding',
+    severity: raw?.severity || 'low',
+    summary: raw?.summary || raw?.description || '',
+    detail: raw?.detail ?? null,
+    metrics: raw?.metrics && typeof raw.metrics === 'object' ? raw.metrics : {},
+    evidence: Array.isArray(raw?.evidence) ? raw.evidence.map(normalizeSourceRef) : [],
+    confidence: typeof raw?.confidence === 'number' ? raw.confidence : undefined,
+  }
+}
+
+export function normalizeDeepAnalysis(raw: any): DeepAnalysisResult | null {
+  if (!raw || typeof raw !== 'object') return null
+  return {
+    doc_id: raw.doc_id || '',
+    provider: raw.provider || 'unknown',
+    model: raw.model || 'unknown',
+    summary: raw.summary || '',
+    findings: Array.isArray(raw.findings) ? raw.findings.map(normalizeFinding) : [],
+    limitations: Array.isArray(raw.limitations) ? raw.limitations : [],
+    invocations: Array.isArray(raw.invocations) ? raw.invocations : [],
+    created_at: raw.created_at ?? null,
+  }
+}
+
 export const docsApi = {
   list(limit = 50, offset = 0) {
     return unwrap<{ items: DocumentListItem[]; total: number; limit: number; offset: number }>(
@@ -158,6 +191,15 @@ export const docsApi = {
   },
   tables(docId: string) {
     return unwrap<any>(http.get(`/v1/documents/${docId}/tables`)).then(normalizeTables)
+  },
+  deepAnalysis(docId: string) {
+    return unwrap<any>(http.get(`/v1/documents/${docId}/deep-analysis`)).then(normalizeDeepAnalysis)
+  },
+  agentRuns(docId: string) {
+    return unwrap<AgentRun[]>(http.get(`/v1/documents/${docId}/agent-runs`))
+  },
+  capabilities() {
+    return unwrap<AgentCapability[]>(http.get('/v1/agent/capabilities'))
   },
   pdfBlob(docId: string) {
     return http.get(`/v1/documents/${docId}/pdf`, { responseType: 'blob' }).then((r) => r.data as Blob)
