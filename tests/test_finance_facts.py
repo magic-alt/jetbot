@@ -103,6 +103,41 @@ def test_apply_corrections_updates_allowed_fact_field() -> None:
     assert fact.value == 100.0
 
 
+def test_apply_corrections_revalidates_dates_and_source_refs() -> None:
+    statement = FinancialStatement(
+        statement_type="income",
+        period_end=date(2025, 12, 31),
+        line_items=[StatementLineItem(name_raw="Revenue", name_norm="revenue", value_current=100.0)],
+    )
+    fact = facts_from_statements("doc-1", {"income": statement})[0]
+    corrections = [
+        Correction(
+            correction_id="c1",
+            doc_id="doc-1",
+            fact_id=fact.fact_id,
+            field_name="period_end",
+            old_value=fact.period_end,
+            new_value="2026-01-31",
+            actor="analyst",
+        ),
+        Correction(
+            correction_id="c2",
+            doc_id="doc-1",
+            fact_id=fact.fact_id,
+            field_name="source_refs",
+            old_value=[],
+            new_value=[{"ref_type": "page_text", "page": 2, "quote": "Revenue 125", "confidence": 0.91}],
+            actor="analyst",
+        ),
+    ]
+
+    corrected = apply_corrections([fact], corrections)
+
+    assert corrected[0].period_end == date(2026, 1, 31)
+    assert corrected[0].source_refs[0].page == 2
+    assert corrected[0].source_refs[0].quote == "Revenue 125"
+
+
 def test_facts_from_statements_uses_report_type_as_filing_type_fallback() -> None:
     statement = FinancialStatement(
         statement_type="balance",

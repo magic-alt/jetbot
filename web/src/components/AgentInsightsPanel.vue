@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { AgentCapability, AgentRun, DeepAnalysisResult } from '@/api/types'
+import type { AgentCapability, AgentRun, DeepAnalysisResult, SourceRef } from '@/api/types'
 import EvidenceLink from './EvidenceLink.vue'
 import SeverityTag from './SeverityTag.vue'
 
@@ -9,7 +9,7 @@ const props = defineProps<{
   agentRuns: AgentRun[]
   capabilities: AgentCapability[]
 }>()
-const emit = defineEmits<{ (e: 'jumpPage', page: number): void }>()
+const emit = defineEmits<{ (e: 'jumpPage', source: SourceRef): void }>()
 
 const enabledCapabilities = computed(() => props.capabilities.filter((capability) => capability.enabled))
 const disabledCapabilities = computed(() => props.capabilities.filter((capability) => !capability.enabled))
@@ -81,7 +81,7 @@ function statusType(status: string): 'success' | 'warning' | 'info' | 'danger' {
                 v-for="(source, index) in finding.evidence"
                 :key="index"
                 :source="source"
-                @jump="(page: number) => emit('jumpPage', page)"
+                @jump="(evidence: SourceRef) => emit('jumpPage', evidence)"
               />
             </div>
             <div v-if="finding.confidence != null" class="muted confidence">

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { FinancialStatements, MetricItem } from '@/api/types'
+import type { FinancialStatements, MetricItem, SourceRef } from '@/api/types'
 import EvidenceLink from './EvidenceLink.vue'
 
 const props = defineProps<{ statements: FinancialStatements | null }>()
-const emit = defineEmits<{ (e: 'jumpPage', page: number): void }>()
+const emit = defineEmits<{ (e: 'jumpPage', source: SourceRef): void }>()
 
 const groups = computed(() => {
   if (!props.statements) return [] as { key: string; label: string; rows: MetricItem[] }[]
@@ -50,7 +50,7 @@ const groups = computed(() => {
           </el-table-column>
           <el-table-column label="证据" width="120">
             <template #default="{ row }: { row: MetricItem }">
-              <EvidenceLink :source="row.source" @jump="(p: number) => emit('jumpPage', p)" />
+              <EvidenceLink :source="row.source" @jump="(source: SourceRef) => emit('jumpPage', source)" />
             </template>
           </el-table-column>
         </el-table>

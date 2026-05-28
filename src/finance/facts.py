@@ -4,6 +4,8 @@ import hashlib
 from collections.abc import Iterable
 from typing import Any
 
+from pydantic import ValidationError
+
 from src.schemas.models import Correction, DocumentMeta, FinancialFact, FinancialStatement, SourceRef, StatementLineItem
 
 
@@ -52,7 +54,12 @@ def apply_corrections(facts: Iterable[FinancialFact], corrections: Iterable[Corr
         fact = by_id.get(correction.fact_id)
         if fact is None or correction.field_name not in valid_fields:
             continue
-        by_id[correction.fact_id] = fact.model_copy(update={correction.field_name: correction.new_value})
+        updated_payload = fact.model_dump(mode="python")
+        updated_payload[correction.field_name] = correction.new_value
+        try:
+            by_id[correction.fact_id] = FinancialFact.model_validate(updated_payload)
+        except ValidationError:
+            continue
     return list(by_id.values())
 
 

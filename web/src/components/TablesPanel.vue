@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { ExtractedTable, TableCell } from '@/api/types'
+import type { ExtractedTable, SourceRef, TableCell } from '@/api/types'
 
 const props = defineProps<{ tables: ExtractedTable[] }>()
-const emit = defineEmits<{ (e: 'jumpPage', page: number): void }>()
+const emit = defineEmits<{ (e: 'jumpPage', source: SourceRef): void }>()
 
 const selected = ref<string>('')
 const query = ref('')
@@ -106,7 +106,12 @@ const stats = computed(() => ({
             <div class="preview-title">{{ current.title || current.table_id }}</div>
             <div class="table-stats muted">第 {{ current.page }} 页 · {{ stats.rows }} 行 · {{ stats.cols }} 列 · {{ stats.cells }} 单元格</div>
           </div>
-          <el-button link type="primary" size="small" @click="emit('jumpPage', current.page)">
+          <el-button
+            link
+            type="primary"
+            size="small"
+            @click="emit('jumpPage', { ref_type: 'table', page: current.page, table_id: current.table_id, confidence: 1 })"
+          >
             定位至 PDF 第 {{ current.page }} 页
           </el-button>
         </div>

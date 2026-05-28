@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { FinancialStatements, MetricItem, RiskSignal } from '@/api/types'
+import type { FinancialStatements, MetricItem, RiskSignal, SourceRef } from '@/api/types'
 import KpiCard from './KpiCard.vue'
 import SeverityTag from './SeverityTag.vue'
 import EvidenceLink from './EvidenceLink.vue'
@@ -10,7 +10,7 @@ const props = defineProps<{
   signals: RiskSignal[]
   reportMd: string
 }>()
-const emit = defineEmits<{ (e: 'jumpPage', page: number): void }>()
+const emit = defineEmits<{ (e: 'jumpPage', source: SourceRef): void }>()
 
 function metricKey(name: string): string {
   return name.replace(/[_-]/g, ' ').trim().toLowerCase()
@@ -122,7 +122,7 @@ const conclusion = computed(() => {
         <template #default="{ row }: { row: RiskSignal }">
           <EvidenceLink
             :source="row.evidence?.[0]"
-            @jump="(p: number) => emit('jumpPage', p)"
+            @jump="(source: SourceRef) => emit('jumpPage', source)"
           />
         </template>
       </el-table-column>

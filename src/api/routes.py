@@ -8,12 +8,13 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from src.agent.capabilities import get_agent_capabilities
 from src.agent.graph import build_graph, get_cached_state
 from src.agent.state import AgentState
 from src.api.auth import verify_api_key
+from src.finance.facts import apply_corrections
 from src.pdf.engine import get_pdf_engine
 from src.pdf.operations import (
     delete_pages,
@@ -22,7 +23,7 @@ from src.pdf.operations import (
     reorder_pages,
     rotate_pages,
 )
-from src.schemas.models import DocumentMeta
+from src.schemas.models import Correction, DocumentMeta, FinancialFact, SourceRef
 from src.storage.backend import get_storage_backend
 from src.storage.task_store import TaskStore
 from src.utils.document_metadata import enrich_document_meta
@@ -45,12 +46,35 @@ _PDF_MAGIC = b"%PDF"
 _SAFE_FILENAME_RE = re.compile(r"[^\w.\-]")
 _MAX_FILENAME_LEN = 128
 _SAFE_REVISION_RE = re.compile(r"^[a-zA-Z0-9_\-]+$")
+_CORRECTABLE_FACT_FIELDS = {
+    "value",
+    "concept",
+    "label",
+    "raw_label",
+    "unit",
+    "currency",
+    "scale",
+    "period_start",
+    "period_end",
+    "period_type",
+    "source_refs",
+}
+_CORRECTION_FIELD_ALIASES = {"evidence": "source_refs"}
 
 
 class PdfOperationRequest(BaseModel):
     operation: Literal["extract", "delete", "reorder", "rotate"]
     pages: list[int] | None = Field(default=None)
     degrees: int = Field(default=90)
+
+
+class CorrectionCreateRequest(BaseModel):
+    field_name: str
+    new_value: Any = None
+    old_value: Any = None
+    actor: str = "analyst"
+    reason: str | None = None
+    source_refs: list[SourceRef] = Field(default_factory=list)
 
 
 def _ok(data: Any) -> dict[str, Any]:
@@ -129,6 +153,60 @@ def _load_enriched_meta(doc_id: str) -> DocumentMeta | None:
     if enriched != meta:
         store.save_meta(doc_id, enriched)
     return enriched
+
+
+def _require_document(doc_id: str) -> DocumentMeta:
+    meta = store.load_meta(doc_id)
+    if meta is None:
+        _err("not_found", "Document not found")
+        raise AssertionError("unreachable")
+    return meta
+
+
+def _load_fact_models(doc_id: str) -> list[FinancialFact]:
+    data = store.load_json(doc_id, "extracted/facts.json")
+    if data is None:
+        _err("not_found", "Facts not found")
+    return [FinancialFact.model_validate(item) for item in data]
+
+
+def _load_correction_models(doc_id: str) -> list[Correction]:
+    data = store.load_json(doc_id, "extracted/corrections.json")
+    if data is None:
+        return []
+    return [Correction.model_validate(item) for item in data]
+
+
+def _save_correction_models(doc_id: str, corrections: list[Correction]) -> None:
+    store.save_json(
+        doc_id,
+        "extracted/corrections.json",
+        [correction.model_dump(mode="json") for correction in corrections],
+    )
+
+
+def _save_effective_facts(doc_id: str, facts: list[FinancialFact], corrections: list[Correction]) -> list[FinancialFact]:
+    effective_facts = apply_corrections(facts, corrections)
+    store.save_json(
+        doc_id,
+        "extracted/effective_facts.json",
+        [fact.model_dump(mode="json") for fact in effective_facts],
+    )
+    return effective_facts
+
+
+def _normalize_correction_field(field_name: str) -> str:
+    return _CORRECTION_FIELD_ALIASES.get(field_name, field_name)
+
+
+def _validated_corrected_fact(fact: FinancialFact, field_name: str, new_value: Any) -> FinancialFact:
+    updated_payload = fact.model_dump(mode="python")
+    updated_payload[field_name] = new_value
+    try:
+        return FinancialFact.model_validate(updated_payload)
+    except ValidationError as exc:
+        _err("bad_request", f"Invalid value for correction field '{field_name}': {exc.errors()[0]['msg']}")
+        raise AssertionError("unreachable")
 
 
 _AuthDep = Annotated[None, Depends(verify_api_key)]
@@ -278,6 +356,66 @@ async def get_facts(_auth: _AuthDep, doc_id: str):
     if data is None:
         return _err("not_found", "Facts not found")
     return _ok(data)
+
+
+@router.get("/documents/{doc_id}/facts/effective")
+async def get_effective_facts(_auth: _AuthDep, doc_id: str):
+    _require_document(doc_id)
+    facts = _load_fact_models(doc_id)
+    corrections = _load_correction_models(doc_id)
+    effective_facts = _save_effective_facts(doc_id, facts, corrections)
+    return _ok([fact.model_dump(mode="json") for fact in effective_facts])
+
+
+@router.get("/documents/{doc_id}/corrections")
+async def get_corrections(_auth: _AuthDep, doc_id: str):
+    _require_document(doc_id)
+    corrections = _load_correction_models(doc_id)
+    return _ok([correction.model_dump(mode="json") for correction in corrections])
+
+
+@router.post("/documents/{doc_id}/facts/{fact_id}/corrections")
+async def create_fact_correction(
+    _auth: _AuthDep,
+    doc_id: str,
+    fact_id: str,
+    payload: CorrectionCreateRequest,
+):
+    _require_document(doc_id)
+    facts = _load_fact_models(doc_id)
+    corrections = _load_correction_models(doc_id)
+    effective_facts = apply_corrections(facts, corrections)
+    fact = next((item for item in effective_facts if item.fact_id == fact_id), None)
+    if fact is None:
+        return _err("not_found", "Fact not found")
+
+    field_name = _normalize_correction_field(payload.field_name)
+    if field_name not in _CORRECTABLE_FACT_FIELDS:
+        return _err("bad_request", f"Unsupported correction field '{payload.field_name}'")
+    _validated_corrected_fact(fact, field_name, payload.new_value)
+
+    correction = Correction(
+        correction_id=new_doc_id(),
+        doc_id=doc_id,
+        fact_id=fact_id,
+        field_name=field_name,
+        old_value=payload.old_value if payload.old_value is not None else getattr(fact, field_name, None),
+        new_value=payload.new_value,
+        actor=payload.actor,
+        reason=payload.reason,
+        source_refs=payload.source_refs,
+    )
+    next_corrections = corrections + [correction]
+    _save_correction_models(doc_id, next_corrections)
+    next_effective_facts = _save_effective_facts(doc_id, facts, next_corrections)
+    next_fact = next((item for item in next_effective_facts if item.fact_id == fact_id), None)
+    return _ok(
+        {
+            "correction": correction.model_dump(mode="json"),
+            "effective_fact": next_fact.model_dump(mode="json") if next_fact else None,
+            "correction_count": len(next_corrections),
+        }
+    )
 
 
 @router.get("/documents/{doc_id}/fact-validation")
