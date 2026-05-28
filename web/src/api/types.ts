@@ -54,6 +54,28 @@ export interface FinancialFact {
   metadata?: Record<string, unknown>
 }
 
+export interface Correction {
+  correction_id: string
+  doc_id: string
+  fact_id: string
+  field_name: string
+  old_value?: unknown
+  new_value?: unknown
+  actor: string
+  reason?: string | null
+  source_refs: SourceRef[]
+  created_at?: string | null
+}
+
+export interface CorrectionCreateRequest {
+  field_name: string
+  new_value: unknown
+  old_value?: unknown
+  actor?: string
+  reason?: string | null
+  source_refs?: SourceRef[]
+}
+
 export interface FactValidationIssue {
   code: string
   severity: 'low' | 'medium' | 'high' | string

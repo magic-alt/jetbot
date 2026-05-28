@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { RiskSignal } from '@/api/types'
+import type { RiskSignal, SourceRef } from '@/api/types'
 import SeverityTag from './SeverityTag.vue'
 import EvidenceLink from './EvidenceLink.vue'
 
 const props = defineProps<{ signals: RiskSignal[] }>()
-const emit = defineEmits<{ (e: 'jumpPage', page: number): void }>()
+const emit = defineEmits<{ (e: 'jumpPage', source: SourceRef): void }>()
 
 const filterSeverity = ref<string>('all')
 const filterCategory = ref<string>('all')
@@ -59,7 +59,7 @@ const rows = computed(() =>
           <div v-if="r.evidence?.length" class="evidence">
             <strong>证据:</strong>
             <span v-for="(e, idx) in r.evidence" :key="idx" style="margin-left: 8px">
-              <EvidenceLink :source="e" @jump="(p: number) => emit('jumpPage', p)" />
+              <EvidenceLink :source="e" @jump="(source: SourceRef) => emit('jumpPage', source)" />
             </span>
           </div>
           <div v-if="r.confidence != null" class="confidence muted">
