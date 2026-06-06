@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { KeyNote } from '@/api/types'
+import type { KeyNote, SourceRef } from '@/api/types'
 import EvidenceLink from './EvidenceLink.vue'
 
 defineProps<{ notes: KeyNote[] }>()
-const emit = defineEmits<{ (e: 'jumpPage', page: number): void }>()
+const emit = defineEmits<{ (e: 'jumpPage', source: SourceRef): void }>()
 </script>
 
 <template>
@@ -19,7 +19,7 @@ const emit = defineEmits<{ (e: 'jumpPage', page: number): void }>()
               v-for="(e, j) in n.evidence"
               :key="j"
               :source="e"
-              @jump="(p: number) => emit('jumpPage', p)"
+              @jump="(source: SourceRef) => emit('jumpPage', source)"
             />
           </div>
         </el-card>

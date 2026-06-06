@@ -1,5 +1,7 @@
 import { buildApiUrl, http, unwrap } from './client'
 import type {
+  Correction,
+  CorrectionCreateRequest,
   DocumentListItem,
   AgentCapability,
   AgentRun,
@@ -38,6 +40,47 @@ function normalizeSourceRef(raw: any): SourceRef {
 
 function normalizeMetricName(name: string): string {
   return name.replace(/_/g, ' ')
+}
+
+function normalizeFact(raw: any): FinancialFact {
+  return {
+    fact_id: raw?.fact_id || '',
+    doc_id: raw?.doc_id || '',
+    company: raw?.company ?? null,
+    ticker: raw?.ticker ?? null,
+    cik: raw?.cik ?? null,
+    filing_type: raw?.filing_type ?? null,
+    statement_type: raw?.statement_type || 'other',
+    concept: raw?.concept || 'unknown',
+    label: raw?.label || raw?.concept || 'unknown',
+    raw_label: raw?.raw_label ?? null,
+    value: typeof raw?.value === 'number' ? raw.value : raw?.value ?? null,
+    unit: raw?.unit ?? null,
+    scale: typeof raw?.scale === 'number' ? raw.scale : raw?.scale ?? null,
+    currency: raw?.currency ?? null,
+    period_start: raw?.period_start ?? null,
+    period_end: raw?.period_end ?? null,
+    period_type: raw?.period_type || 'unknown',
+    source_refs: Array.isArray(raw?.source_refs) ? raw.source_refs.map(normalizeSourceRef) : [],
+    confidence: typeof raw?.confidence === 'number' ? raw.confidence : 0,
+    extraction_engine: raw?.extraction_engine ?? null,
+    metadata: raw?.metadata && typeof raw.metadata === 'object' ? raw.metadata : {},
+  }
+}
+
+function normalizeCorrection(raw: any): Correction {
+  return {
+    correction_id: raw?.correction_id || '',
+    doc_id: raw?.doc_id || '',
+    fact_id: raw?.fact_id || '',
+    field_name: raw?.field_name || '',
+    old_value: raw?.old_value,
+    new_value: raw?.new_value,
+    actor: raw?.actor || 'analyst',
+    reason: raw?.reason ?? null,
+    source_refs: Array.isArray(raw?.source_refs) ? raw.source_refs.map(normalizeSourceRef) : [],
+    created_at: raw?.created_at ?? null,
+  }
 }
 
 export function normalizeStatements(raw: any): FinancialStatements {
@@ -184,7 +227,22 @@ export const docsApi = {
     return unwrap<any>(http.get(`/v1/documents/${docId}/statements`)).then(normalizeStatements)
   },
   facts(docId: string) {
-    return unwrap<FinancialFact[]>(http.get(`/v1/documents/${docId}/facts`))
+    return unwrap<any[]>(http.get(`/v1/documents/${docId}/facts`)).then((raw) => raw.map(normalizeFact))
+  },
+  effectiveFacts(docId: string) {
+    return unwrap<any[]>(http.get(`/v1/documents/${docId}/facts/effective`)).then((raw) => raw.map(normalizeFact))
+  },
+  corrections(docId: string) {
+    return unwrap<any[]>(http.get(`/v1/documents/${docId}/corrections`)).then((raw) => raw.map(normalizeCorrection))
+  },
+  createCorrection(docId: string, factId: string, payload: CorrectionCreateRequest) {
+    return unwrap<{ correction: any; effective_fact: any; correction_count: number }>(
+      http.post(`/v1/documents/${docId}/facts/${factId}/corrections`, payload),
+    ).then((data) => ({
+      correction: normalizeCorrection(data.correction),
+      effective_fact: data.effective_fact ? normalizeFact(data.effective_fact) : null,
+      correction_count: data.correction_count,
+    }))
   },
   factValidation(docId: string) {
     return unwrap<FactValidationResult>(http.get(`/v1/documents/${docId}/fact-validation`))
