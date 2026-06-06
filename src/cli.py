@@ -82,5 +82,68 @@ def show(doc_id: str, what: str = typer.Option("report", help="report|signals|st
     typer.echo(json.dumps(data, ensure_ascii=False, indent=2))
 
 
+@app.command("export-facts")
+def export_facts(
+    doc_id: str = typer.Argument(..., help="Document ID to export"),
+    out: str = typer.Option("data", help="Data directory"),
+    output_file: str | None = typer.Option(None, "--output", "-o", help="Write JSON to file instead of stdout"),
+    effective: bool = typer.Option(True, help="Apply user corrections before export"),
+):
+    """Export normalised financial facts for downstream consumption.
+
+    Produces a JSON envelope with the five core metrics (revenue_growth,
+    net_profit_growth, gross_margin, operating_cash_flow, debt_ratio)
+    that quantitative platforms can ingest as fundamental-factor input.
+    """
+    from src.export.builder import build_export
+    from src.finance.facts import apply_corrections
+    from src.schemas.models import Correction, FinancialFact, FinancialStatement, RiskSignal
+
+    store = LocalStore(out)
+
+    meta_raw = store.load_json(doc_id, "meta.json")
+    if meta_raw is None:
+        raise typer.BadParameter(f"Document {doc_id} not found")
+    meta = DocumentMeta.model_validate(meta_raw)
+
+    # Load statements
+    stmts_raw = store.load_json(doc_id, "extracted/statements.json") or {}
+    statements: dict[str, FinancialStatement] = {}
+    for key, val in stmts_raw.items():
+        try:
+            statements[key] = FinancialStatement.model_validate(val)
+        except Exception:
+            continue
+
+    # Load facts
+    facts_raw = store.load_json(doc_id, "extracted/facts.json") or []
+    facts = [FinancialFact.model_validate(f) for f in facts_raw if isinstance(f, dict)]
+
+    if effective:
+        corrections_raw = store.load_json(doc_id, "extracted/corrections.json") or []
+        corrections = [Correction.model_validate(c) for c in corrections_raw if isinstance(c, dict)]
+        if corrections:
+            facts = apply_corrections(facts, corrections)
+
+    # Load risk signals
+    signals_raw = store.load_json(doc_id, "extracted/risk_signals.json") or []
+    risk_signals = [RiskSignal.model_validate(s) for s in signals_raw if isinstance(s, dict)]
+
+    envelope = build_export(
+        meta=meta,
+        statements=statements,
+        facts=facts,
+        risk_signals=risk_signals,
+        corrections_applied=effective,
+    )
+    result = json.dumps(envelope.model_dump(mode="json"), ensure_ascii=False, indent=2)
+
+    if output_file:
+        Path(output_file).write_text(result, encoding="utf-8")
+        typer.echo(f"Export written to {output_file}")
+    else:
+        typer.echo(result)
+
+
 if __name__ == "__main__":
     app()
