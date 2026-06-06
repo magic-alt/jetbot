@@ -1,4 +1,4 @@
-"""Anthropic Claude LLM client — drop-in replacement for OpenAILLMClient.
+"""Anthropic Claude LLM client -- drop-in replacement for OpenAILLMClient.
 
 Requires: ``pip install anthropic``
 """
@@ -6,17 +6,18 @@ Requires: ``pip install anthropic``
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 from typing import Any
 
-from pydantic import ValidationError
-
 from src.llm.base import StructuredPromptRequest
 from src.llm.token_manager import check_and_truncate
+from src.llm.utils import parse_json_fallback, render_user_prompt
 from src.utils.logging import get_logger
 
 _logger = get_logger(__name__)
+
+# Configurable max output tokens for Anthropic API calls.
+_MAX_OUTPUT_TOKENS = int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "4096"))
 
 try:
     from anthropic import Anthropic  # type: ignore[import-untyped]
@@ -45,7 +46,7 @@ class AnthropicLLMClient:
         try:
             response = self._client.messages.create(
                 model=self._model,
-                max_tokens=4096,
+                max_tokens=_MAX_OUTPUT_TOKENS,
                 system=system,
                 messages=[{"role": "user", "content": user}],
             )
@@ -67,10 +68,10 @@ class AnthropicLLMClient:
             schema = request.output_model.model_json_schema()
         text = self._chat_sync(
             request.system_template,
-            _render_user_prompt(request.user_template, request.input_values),
+            render_user_prompt(request.user_template, request.input_values),
             schema,
         )
-        return _parse_fallback(text, request.output_model)
+        return parse_json_fallback(text, request.output_model)
 
     def invoke_parallel(
         self,
@@ -100,33 +101,3 @@ class AnthropicLLMClient:
                 key = futures[future]
                 results[key] = future.result()
         return results
-
-
-# ---------------------------------------------------------------------------
-# Helpers (mirrored from openai_client for consistency)
-# ---------------------------------------------------------------------------
-
-
-def _render_user_prompt(template: str, values: dict[str, Any]) -> str:
-    try:
-        return template.format(**values)
-    except KeyError as exc:
-        _logger.warning("user_prompt_missing_key", extra={"key": str(exc)})
-        return template
-
-
-def _parse_fallback(text: str, output_model: Any) -> Any:
-    try:
-        parsed: Any = json.loads(text)
-    except json.JSONDecodeError:
-        parsed = {}
-    if output_model is None:
-        return parsed
-    try:
-        return output_model.model_validate(parsed)
-    except ValidationError:
-        if isinstance(parsed, list):
-            fields = list(output_model.model_fields.keys())
-            if len(fields) == 1:
-                return output_model.model_validate({fields[0]: parsed})
-        raise
