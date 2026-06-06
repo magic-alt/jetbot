@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import json
-from datetime import date, datetime, timezone
+from datetime import date
 
 import pytest
 
@@ -21,7 +20,6 @@ from src.export.builder import (
 )
 from src.schemas.models import (
     DocumentMeta,
-    FinancialFact,
     FinancialStatement,
     RiskSignal,
     SourceRef,

@@ -17,8 +17,6 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any
-
 from src.export.schema import (
     ExportedFact,
     ExportedFinancialFacts,
@@ -174,7 +172,6 @@ def _compute_core_metrics(
             cogs_val, _ = _find_item_value(income.line_items, _COGS_ALIASES)
             if cogs_val is not None:
                 gp_val = rev_val - cogs_val
-                gp_item = rev_item  # use revenue item for source page
         if rev_val and gp_val and rev_val != 0:
             margin = gp_val / rev_val
             exported.append(ExportedFact(
