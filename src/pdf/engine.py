@@ -277,13 +277,24 @@ class PdfiumEngine:
         return False
 
 
+_engine_cache: dict[str, PdfEngine] = {}
+
+
 def get_pdf_engine(name: str | None = None) -> PdfEngine:
     requested = (name or os.getenv("PDF_ENGINE") or "pymupdf").strip().lower()
     if requested in {"pymupdf", "fitz"}:
-        return PyMuPDFEngine()
-    if requested in {"pdfium", "pypdfium2"}:
-        return PdfiumEngine()
-    raise ValueError(f"Unsupported PDF_ENGINE {requested!r}. Use 'pymupdf' or 'pdfium'.")
+        requested = "pymupdf"
+    elif requested in {"pdfium", "pypdfium2"}:
+        requested = "pdfium"
+    else:
+        raise ValueError(f"Unsupported PDF_ENGINE {requested!r}. Use 'pymupdf' or 'pdfium'.")
+
+    if requested not in _engine_cache:
+        if requested == "pymupdf":
+            _engine_cache[requested] = PyMuPDFEngine()
+        else:
+            _engine_cache[requested] = PdfiumEngine()
+    return _engine_cache[requested]
 
 
 def _ensure_valid_pdf(pdf_path: str) -> None:

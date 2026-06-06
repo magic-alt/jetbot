@@ -381,3 +381,130 @@ class TestBuildExport:
         parsed = ExportedFinancialFacts.model_validate(data)
         assert parsed.doc_id == envelope.doc_id
         assert len(parsed.facts) == 5
+
+
+# ── Edge case tests ────────────────────────────────────────────────────
+
+
+class TestExportEdgeCases:
+    """Test export builder edge cases for falsy-but-valid values."""
+
+    def _make_statements(
+        self,
+        income_items: list[StatementLineItem] | None = None,
+        balance_items: list[StatementLineItem] | None = None,
+        cashflow_items: list[StatementLineItem] | None = None,
+    ) -> dict[str, FinancialStatement]:
+        stmts: dict[str, FinancialStatement] = {}
+        if income_items is not None:
+            stmts["income"] = FinancialStatement(
+                statement_type="income",
+                line_items=income_items,
+                extraction_confidence=0.85,
+            )
+        if balance_items is not None:
+            stmts["balance"] = FinancialStatement(
+                statement_type="balance",
+                line_items=balance_items,
+                extraction_confidence=0.80,
+            )
+        if cashflow_items is not None:
+            stmts["cashflow"] = FinancialStatement(
+                statement_type="cashflow",
+                line_items=cashflow_items,
+                extraction_confidence=0.75,
+            )
+        return stmts
+
+    def test_revenue_growth_with_zero_current_revenue(self) -> None:
+        """Revenue of 0.0 is a valid value and should produce growth = -1.0."""
+        items = [
+            _item("营业收入", "revenue", value_current=0.0, value_prior=1000.0),
+        ]
+        stmts = self._make_statements(income_items=items)
+        results = _compute_core_metrics(stmts, [])
+        rev = next((f for f in results if f.metric == "revenue_growth"), None)
+        assert rev is not None, "Revenue=0 should still compute growth when prior is non-zero"
+        assert rev.value == pytest.approx(-1.0, abs=1e-4)
+        assert rev.raw_value == 0.0
+
+    def test_net_profit_growth_with_zero_current_profit(self) -> None:
+        """Net profit of 0.0 is a valid value and should produce growth = -1.0."""
+        items = [
+            _item("净利润", "net_income", value_current=0.0, value_prior=500.0),
+        ]
+        stmts = self._make_statements(income_items=items)
+        results = _compute_core_metrics(stmts, [])
+        np_ = next((f for f in results if f.metric == "net_profit_growth"), None)
+        assert np_ is not None, "Net profit=0 should still compute growth when prior is non-zero"
+        assert np_.value == pytest.approx(-1.0, abs=1e-4)
+        assert np_.raw_value == 0.0
+
+    def test_gross_margin_with_zero_revenue_skips(self) -> None:
+        """Revenue=0 means gross margin is undefined (division by zero) and should be skipped."""
+        items = [
+            _item("营业收入", "revenue", value_current=0.0),
+            _item("毛利润", "gross_profit", value_current=0.0),
+        ]
+        stmts = self._make_statements(income_items=items)
+        results = _compute_core_metrics(stmts, [])
+        gm = next((f for f in results if f.metric == "gross_margin"), None)
+        assert gm is None, "Gross margin should not be computed when revenue is 0"
+
+    def test_debt_ratio_with_zero_assets_skips(self) -> None:
+        """Total assets=0 means debt ratio is undefined and should be skipped."""
+        items = [
+            _item("资产总计", "total_assets", value_current=0.0),
+            _item("负债合计", "total_liabilities", value_current=0.0),
+        ]
+        stmts = self._make_statements(balance_items=items)
+        results = _compute_core_metrics(stmts, [])
+        dr = next((f for f in results if f.metric == "debt_ratio"), None)
+        assert dr is None, "Debt ratio should not be computed when total assets is 0"
+
+    def test_operating_cash_flow_with_zero_value(self) -> None:
+        """Operating cash flow of 0.0 is a valid value and should be included."""
+        items = [
+            _item(
+                "经营活动产生的现金流量净额",
+                "net_cash_from_operating_activities",
+                value_current=0.0,
+            ),
+        ]
+        stmts = self._make_statements(cashflow_items=items)
+        results = _compute_core_metrics(stmts, [])
+        ocf = next((f for f in results if f.metric == "operating_cash_flow"), None)
+        assert ocf is not None, "OCF=0 is valid and should be included"
+        assert ocf.value == pytest.approx(0.0, abs=1e-4)
+        assert ocf.raw_value == 0.0
+
+    def test_export_with_empty_statements(self) -> None:
+        """Export should handle documents with no extracted statements."""
+        meta = _meta()
+        envelope = build_export(
+            meta=meta,
+            statements={},
+            facts=[],
+            risk_signals=None,
+            corrections_applied=False,
+        )
+        assert envelope.symbol == "600519.SH"
+        assert envelope.company == "Test Corp"
+        assert envelope.facts == []
+        assert envelope.risk_signals == []
+        assert envelope.metadata["total_raw_facts"] == 0
+        assert envelope.metadata["corrections_applied"] is False
+
+    def test_export_with_empty_statements_serialization(self) -> None:
+        """Empty export envelope should survive JSON round-trip."""
+        meta = _meta()
+        envelope = build_export(
+            meta=meta,
+            statements={},
+            facts=[],
+        )
+        data = envelope.model_dump(mode="json")
+        parsed = ExportedFinancialFacts.model_validate(data)
+        assert parsed.doc_id == envelope.doc_id
+        assert parsed.facts == []
+        assert parsed.risk_signals == []

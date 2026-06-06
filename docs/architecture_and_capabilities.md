@@ -156,7 +156,7 @@ Embedding 模型自动选择：中文文档 → `BAAI/bge-base-zh-v1.5`，英文
 
 **核心依赖**
 - Python `>=3.12`
-- Web/API：`FastAPI` + `Uvicorn` + `slowapi`（速率限制）
+- Web/API：`FastAPI` + `Uvicorn` + 自研 `_RateLimiter`（基于 sliding-window per-IP rate limiter，无外部依赖）
 - 编排：`LangGraph`
 - Schema：`Pydantic v2`
 - CLI：`Typer`
@@ -235,7 +235,7 @@ Embedding 模型自动选择：中文文档 → `BAAI/bge-base-zh-v1.5`，英文
 
 安全特性：
 - **API Key 认证**：通过 `X-API-Key` 请求头验证（`API_KEYS` 环境变量配置，留空则关闭认证）
-- **速率限制**：基于 slowapi 的 per-IP 限流（`RATE_LIMIT_*` 环境变量配置）
+- **速率限制**：基于自研 `_RateLimiter` 类的 per-IP sliding-window 限流（`RATE_LIMIT_*` 环境变量配置），无外部依赖
 - **输入校验**：PDF MIME 类型、`%PDF-` 头部字节、文件大小（`MAX_UPLOAD_SIZE_MB`）、文件名清理
 - **安全头**：Content-Security-Policy 等标准安全响应头
 
