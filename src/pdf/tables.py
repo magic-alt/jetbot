@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import structlog
+from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
 from src.schemas.models import SourceRef, Table, TableCell
@@ -171,7 +172,8 @@ def extract_tables(
     list[Table]
         Extracted (and optionally merged) tables.
     """
-    mode = (engine or os.getenv("TABLE_ENGINE", "auto")).lower()
+    requested_engine = engine or os.getenv("TABLE_ENGINE") or "auto"
+    mode = requested_engine.lower()
 
     if mode == "auto":
         tables = _extract_with_engine(pdf_path, PdfplumberEngine())
@@ -217,8 +219,8 @@ def _extract_best(pdf_path: str) -> list[Table]:
         camelot_tables = _extract_with_engine(pdf_path, CamelotEngine())
         if camelot_tables:
             results.append(("camelot", camelot_tables))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("table_router_camelot_failed", error=str(exc))
 
     # Pick the result set with the highest average confidence
     best_name, best_tables = max(
@@ -528,7 +530,7 @@ def _detect_table_title(raw_table: list[list[str | None]]) -> str | None:
     return None
 
 
-def is_header_row(row: list[str | None]) -> bool:
+def is_header_row(row: Sequence[str | None]) -> bool:
     """Return True when *row* is likely a column-header row (mostly non-numeric)."""
     non_empty = [str(c).strip() for c in row if c and str(c).strip()]
     if not non_empty:
