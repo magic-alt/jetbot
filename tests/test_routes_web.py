@@ -287,6 +287,110 @@ def test_fact_validation_endpoint(client: TestClient, tmp_path: Path) -> None:
     assert body["data"]["issues"][0]["code"] == "missing_critical_facts"
 
 
+def test_corrections_endpoints_create_history_and_effective_facts(client: TestClient, tmp_path: Path) -> None:
+    _make_doc(tmp_path / "data", "abc123")
+    facts_path = tmp_path / "data" / "abc123" / "extracted" / "facts.json"
+    facts_path.write_text(
+        json.dumps(
+            [
+                {
+                    "fact_id": "fact-1",
+                    "doc_id": "abc123",
+                    "statement_type": "income",
+                    "concept": "revenue",
+                    "label": "Revenue",
+                    "value": 100.0,
+                    "period_end": "2025-12-31",
+                    "period_type": "duration",
+                    "source_refs": [{"ref_type": "table", "page": 1, "table_id": "p1_t1", "confidence": 0.8}],
+                    "confidence": 0.8,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    create = client.post(
+        "/v1/documents/abc123/facts/fact-1/corrections",
+        json={
+            "field_name": "value",
+            "new_value": 125.0,
+            "actor": "analyst",
+            "reason": "Matched the reviewed filing.",
+            "source_refs": [{"ref_type": "page_text", "page": 2, "quote": "Revenue 125", "confidence": 0.95}],
+        },
+    )
+
+    assert create.status_code == 200
+    create_body = create.json()["data"]
+    assert create_body["correction"]["field_name"] == "value"
+    assert create_body["effective_fact"]["value"] == 125.0
+    assert create_body["correction_count"] == 1
+
+    history = client.get("/v1/documents/abc123/corrections")
+    assert history.status_code == 200
+    history_body = history.json()["data"]
+    assert len(history_body) == 1
+    assert history_body[0]["actor"] == "analyst"
+    assert history_body[0]["source_refs"][0]["page"] == 2
+
+    effective = client.get("/v1/documents/abc123/facts/effective")
+    assert effective.status_code == 200
+    effective_body = effective.json()["data"]
+    assert effective_body[0]["value"] == 125.0
+
+    saved_corrections = json.loads((tmp_path / "data" / "abc123" / "extracted" / "corrections.json").read_text(encoding="utf-8"))
+    saved_effective = json.loads((tmp_path / "data" / "abc123" / "extracted" / "effective_facts.json").read_text(encoding="utf-8"))
+    assert saved_corrections[0]["reason"] == "Matched the reviewed filing."
+    assert saved_effective[0]["value"] == 125.0
+
+
+def test_corrections_endpoint_returns_empty_list_when_none_exist(client: TestClient, tmp_path: Path) -> None:
+    _make_doc(tmp_path / "data", "abc123")
+
+    r = client.get("/v1/documents/abc123/corrections")
+
+    assert r.status_code == 200
+    assert r.json()["data"] == []
+
+
+def test_corrections_endpoint_rejects_invalid_fact_value(client: TestClient, tmp_path: Path) -> None:
+    _make_doc(tmp_path / "data", "abc123")
+    facts_path = tmp_path / "data" / "abc123" / "extracted" / "facts.json"
+    facts_path.write_text(
+        json.dumps(
+            [
+                {
+                    "fact_id": "fact-1",
+                    "doc_id": "abc123",
+                    "statement_type": "income",
+                    "concept": "revenue",
+                    "label": "Revenue",
+                    "value": 100.0,
+                    "period_end": "2025-12-31",
+                    "period_type": "duration",
+                    "source_refs": [{"ref_type": "table", "page": 1, "table_id": "p1_t1", "confidence": 0.8}],
+                    "confidence": 0.8,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    r = client.post(
+        "/v1/documents/abc123/facts/fact-1/corrections",
+        json={
+            "field_name": "period_end",
+            "new_value": "not-a-date",
+            "actor": "analyst",
+        },
+    )
+
+    assert r.status_code == 400
+    assert not (tmp_path / "data" / "abc123" / "extracted" / "corrections.json").exists()
+    assert not (tmp_path / "data" / "abc123" / "extracted" / "effective_facts.json").exists()
+
+
 def test_facts_missing_returns_404(client: TestClient, tmp_path: Path) -> None:
     _make_doc(tmp_path / "data", "abc123")
     r = client.get("/v1/documents/abc123/facts")

@@ -13,8 +13,9 @@ def extract_tables(pdf_path: str) -> list[Table]:
     tables: list[Table] = []
     with pdfplumber.open(pdf_path) as pdf:
         for page_index, page in enumerate(pdf.pages, start=1):
-            page_tables = page.extract_tables() or []
-            for table_index, raw_table in enumerate(page_tables, start=1):
+            page_tables = page.find_tables() or []
+            for table_index, page_table in enumerate(page_tables, start=1):
+                raw_table = page_table.extract() or []
                 if not raw_table:
                     continue
                 cells: list[TableCell] = []
@@ -22,8 +23,9 @@ def extract_tables(pdf_path: str) -> list[Table]:
                 n_cols = max((len(row) for row in raw_table), default=0)
                 for r_idx, row in enumerate(raw_table):
                     for c_idx, cell in enumerate(row):
+                        bbox = _cell_bbox(page_table, r_idx, c_idx, page.width, page.height)
                         cells.append(
-                            TableCell(row=r_idx, col=c_idx, text=str(cell or "").strip())
+                            TableCell(row=r_idx, col=c_idx, text=str(cell or "").strip(), bbox=bbox)
                         )
                 table_id = f"p{page_index}_t{table_index}"
                 confidence = _score_table_confidence(raw_table)
@@ -32,6 +34,7 @@ def extract_tables(pdf_path: str) -> list[Table]:
                     ref_type="table",
                     page=page_index,
                     table_id=table_id,
+                    bbox=_normalize_bbox(page_table.bbox, page.width, page.height),
                     quote=None,
                     confidence=confidence,
                 )
@@ -48,6 +51,41 @@ def extract_tables(pdf_path: str) -> list[Table]:
                     )
                 )
     return tables
+
+
+def _cell_bbox(
+    page_table: object,
+    row_index: int,
+    col_index: int,
+    page_width: float,
+    page_height: float,
+) -> tuple[float, float, float, float] | None:
+    rows = getattr(page_table, "rows", [])
+    if row_index >= len(rows):
+        return None
+    row = rows[row_index]
+    cells = getattr(row, "cells", [])
+    if col_index >= len(cells):
+        return None
+    return _normalize_bbox(cells[col_index], page_width, page_height)
+
+
+def _normalize_bbox(
+    bbox: tuple[float, float, float, float] | None,
+    page_width: float,
+    page_height: float,
+) -> tuple[float, float, float, float] | None:
+    if bbox is None or page_width <= 0 or page_height <= 0:
+        return None
+    left, top, right, bottom = bbox
+    if right <= left or bottom <= top:
+        return None
+    return (
+        round(left / page_width, 6),
+        round(top / page_height, 6),
+        round(right / page_width, 6),
+        round(bottom / page_height, 6),
+    )
 
 
 def _score_table_confidence(raw_table: list[list[str | None]]) -> float:

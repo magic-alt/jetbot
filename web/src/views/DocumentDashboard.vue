@@ -3,18 +3,22 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { docsApi } from '@/api/docs'
 import type {
+  Correction,
   DocumentListItem,
   AgentCapability,
   AgentRun,
   DeepAnalysisResult,
   ExtractedTable,
+  FinancialFact,
   FinancialStatements,
   KeyNote,
   RiskSignal,
+  SourceRef,
 } from '@/api/types'
 import { usePolling } from '@/composables/usePolling'
 import { Document } from '@element-plus/icons-vue'
 import PdfViewer from '@/components/PdfViewer.vue'
+import FactsReviewPanel from '@/components/FactsReviewPanel.vue'
 import OverviewPanel from '@/components/OverviewPanel.vue'
 import StatementsPanel from '@/components/StatementsPanel.vue'
 import TablesPanel from '@/components/TablesPanel.vue'
@@ -28,6 +32,8 @@ const docId = computed(() => String(route.params.docId))
 
 const detail = ref<DocumentListItem | null>(null)
 const statements = ref<FinancialStatements | null>(null)
+const facts = ref<FinancialFact[]>([])
+const corrections = ref<Correction[]>([])
 const signals = ref<RiskSignal[]>([])
 const notes = ref<KeyNote[]>([])
 const tables = ref<ExtractedTable[]>([])
@@ -38,6 +44,7 @@ const reportMd = ref<string>('')
 const errors = ref<Record<string, string>>({})
 const activeTab = ref('overview')
 const focusedPage = ref<number | null>(null)
+const focusedSources = ref<SourceRef[]>([])
 
 async function loadDetail() {
   try {
@@ -59,6 +66,11 @@ async function loadAll() {
   await loadDetail()
   await Promise.all([
     docsApi.statements(docId.value).then((d) => (statements.value = d)).catch(() => null),
+    docsApi
+      .effectiveFacts(docId.value)
+      .then((d) => (facts.value = d || []))
+      .catch(() => docsApi.facts(docId.value).then((d) => (facts.value = d || [])).catch(() => (facts.value = []))),
+    docsApi.corrections(docId.value).then((d) => (corrections.value = d || [])).catch(() => (corrections.value = [])),
     docsApi.riskSignals(docId.value).then((d) => (signals.value = d || [])).catch(() => null),
     docsApi.notes(docId.value).then((d) => (notes.value = d || [])).catch(() => null),
     docsApi.tables(docId.value).then((d) => (tables.value = d || [])).catch(() => null),
@@ -95,19 +107,55 @@ watch(() => docId.value, async () => {
   polling.stop()
   detail.value = null
   statements.value = null
+  facts.value = []
+  corrections.value = []
   signals.value = []
   notes.value = []
   tables.value = []
   deepAnalysis.value = null
   agentRuns.value = []
   reportMd.value = ''
+  focusedPage.value = null
+  focusedSources.value = []
   await Promise.all([loadDetail(), loadCapabilities()])
   if (isFinal.value) await loadAll()
   else polling.start()
 })
 
-function jumpToPage(page: number) {
-  focusedPage.value = page
+function resolveSourceForHighlight(source: SourceRef): SourceRef {
+  if (source.bbox || !source.table_id || source.row == null || source.col == null) {
+    return source
+  }
+  const table = tables.value.find((item) => item.table_id === source.table_id)
+  const cell = table?.cells.find((item) => item.row === source.row && item.col === source.col && Array.isArray(item.bbox))
+  if (!cell?.bbox) {
+    return source
+  }
+  return {
+    ...source,
+    page: source.page || table?.page || 1,
+    bbox: cell.bbox,
+  }
+}
+
+function jumpToPage(target: number | SourceRef | SourceRef[]) {
+  if (typeof target === 'number') {
+    focusedPage.value = target
+    focusedSources.value = []
+    return
+  }
+  const sources = Array.isArray(target) ? target : [target]
+  if (!sources.length) {
+    focusedSources.value = []
+    return
+  }
+  const resolved = sources.map(resolveSourceForHighlight)
+  focusedPage.value = resolved[0].page
+  focusedSources.value = resolved.filter((source) => source.page === resolved[0].page)
+}
+
+function refreshReviewWorkspace() {
+  void loadAll()
 }
 </script>
 
@@ -172,6 +220,15 @@ function jumpToPage(page: number) {
                 @jump-page="jumpToPage"
               />
             </el-tab-pane>
+            <el-tab-pane :label="`事实复核 (${facts.length})`" name="facts">
+              <FactsReviewPanel
+                :doc-id="docId"
+                :facts="facts"
+                :corrections="corrections"
+                @jump-page="jumpToPage"
+                @updated="refreshReviewWorkspace"
+              />
+            </el-tab-pane>
             <el-tab-pane label="财务指标" name="statements">
               <StatementsPanel :statements="statements" @jump-page="jumpToPage" />
             </el-tab-pane>
@@ -203,10 +260,12 @@ function jumpToPage(page: number) {
           <template #header>
             <div class="pdf-header">
               <span>原始 PDF</span>
-              <el-tag v-if="focusedPage" type="info" size="small">已定位至第 {{ focusedPage }} 页</el-tag>
+              <el-tag v-if="focusedPage" type="info" size="small">
+                已定位至第 {{ focusedPage }} 页<span v-if="focusedSources.length"> · {{ focusedSources.length }} 个高亮</span>
+              </el-tag>
             </div>
           </template>
-          <PdfViewer :doc-id="docId" :page="focusedPage" />
+          <PdfViewer :doc-id="docId" :page="focusedPage" :highlights="focusedSources" />
         </el-card>
       </el-col>
     </el-row>
