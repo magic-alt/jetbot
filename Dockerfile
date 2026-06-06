@@ -22,9 +22,9 @@ COPY pyproject.toml README.md ./
 COPY src/ src/
 
 RUN if [ -n "$EXTRAS" ]; then \
-        pip install --no-cache-dir --prefix=/install -e ".[${EXTRAS}]"; \
+        pip install --no-cache-dir --prefix=/install ".[${EXTRAS}]"; \
     else \
-        pip install --no-cache-dir --prefix=/install -e .; \
+        pip install --no-cache-dir --prefix=/install .; \
     fi
 
 # ── Runtime stage ──────────────────────────────────────────────────────────

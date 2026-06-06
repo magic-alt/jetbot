@@ -142,7 +142,7 @@ class PgStore:
                     if record and record.meta_json:
                         return DocumentMeta.model_validate_json(record.meta_json)  # type: ignore[arg-type]
             except Exception:
-                pass
+                _logger.warning("pg_load_meta_failed", doc_id=doc_id, exc_info=True)
 
         # Fallback: local file
         meta_path = self._local_dir / doc_id / "meta.json"
@@ -162,7 +162,7 @@ class PgStore:
                             meta = DocumentMeta.model_validate_json(record.meta_json)  # type: ignore[arg-type]
                             metas_by_id[meta.doc_id] = meta
             except Exception:
-                pass
+                _logger.warning("pg_list_metas_failed", exc_info=True)
 
         if self._local_dir.exists():
             for entry in self._local_dir.iterdir():
@@ -234,7 +234,7 @@ class PgStore:
                     if record and record.content:
                         return json.loads(record.content)  # type: ignore[arg-type]
             except Exception:
-                pass
+                _logger.warning("pg_load_json_failed", doc_id=doc_id, relative_path=relative_path, exc_info=True)
 
         full_path = self._local_dir / doc_id / relative_path
         if full_path.exists():
@@ -256,7 +256,7 @@ class PgStore:
                         session.add(ArtifactRecord(doc_id=doc_id, relative_path=relative_path, content=text))
                     session.commit()
             except Exception:
-                pass
+                _logger.warning("pg_save_markdown_failed", doc_id=doc_id, relative_path=relative_path, exc_info=True)
 
         paths = self.ensure_layout(doc_id)
         full_path = paths["root"] / relative_path
@@ -273,7 +273,7 @@ class PgStore:
                     if record and record.content is not None:
                         return str(record.content)
             except Exception:
-                pass
+                _logger.warning("pg_load_markdown_failed", doc_id=doc_id, relative_path=relative_path, exc_info=True)
 
         full_path = self._local_dir / doc_id / relative_path
         if full_path.exists():

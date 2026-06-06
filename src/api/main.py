@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import os
 import re
 import threading
@@ -26,7 +27,8 @@ init_tracing()
 app = FastAPI(title="Financial Report Agent", version="0.1.0")
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
-_cors_origins = os.getenv("CORS_ORIGINS", "*")
+_is_production = os.getenv("ENV", "").lower() == "production"
+_cors_origins = os.getenv("CORS_ORIGINS", "" if _is_production else "*")
 _allowed_origins = [o.strip() for o in _cors_origins.split(",") if o.strip()]
 
 app.add_middleware(
@@ -57,6 +59,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 
 # ── Rate limiter ──────────────────────────────────────────────────────────────
+@functools.lru_cache(maxsize=1)
 def _read_rate_limits() -> dict[str, int]:
     return {
         "upload": int(os.getenv("RATE_LIMIT_UPLOAD", "5")),
@@ -76,13 +79,19 @@ def _classify_request(path: str, method: str) -> str:
 class _RateLimiter:
     """Simple sliding-window per-IP rate limiter (no external dependencies)."""
 
+    _CLEANUP_INTERVAL = 1000  # cleanup every N requests
+
     def __init__(self) -> None:
         self._windows: defaultdict[str, deque[float]] = defaultdict(deque)
         self._lock = threading.Lock()
+        self._request_count = 0
 
     def is_allowed(self, key: str, limit: int) -> bool:
         now = time.monotonic()
         with self._lock:
+            self._request_count += 1
+            if self._request_count % self._CLEANUP_INTERVAL == 0:
+                self._cleanup(now)
             window = self._windows[key]
             while window and window[0] < now - 60.0:
                 window.popleft()
@@ -90,6 +99,15 @@ class _RateLimiter:
                 return False
             window.append(now)
             return True
+
+    def _cleanup(self, now: float) -> None:
+        """Remove stale entries older than the sliding window."""
+        stale_keys = [
+            k for k, v in self._windows.items()
+            if not v or v[-1] < now - 120.0
+        ]
+        for k in stale_keys:
+            del self._windows[k]
 
 
 _limiter = _RateLimiter()
