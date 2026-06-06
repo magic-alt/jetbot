@@ -608,6 +608,6 @@ repo/
 | P2: OCR & PDF 增强 | ✅ 完成 | 108 | PaddleOCR + Tesseract 双引擎 OCR、PyMuPDF 页面渲染、DPI 可配 |
 | P3: LLM & RAG 升级 | ✅ 完成 | 162 | Embedding RAG (FAISS)、Token 管理、Anthropic Claude 客户端、多模型路由、Few-shot 提示词 |
 | P4: 异步队列 & 存储 | ✅ 完成 | 162 | Celery+Redis 任务队列、PostgreSQL 存储、S3/MinIO 对象存储、节点级进度追踪 |
-| P5: 行情 & 事件研究 | ⏳ 待实施 | — | Tushare/Polygon 数据源、CAPM 异常收益、统计显著性检验 |
-| P6: 评测 & QA | ⏳ 待实施 | — | Golden 测试集、准确率指标、回归检测 |
-| P7: 可观测 & DevOps | ⏳ 待实施 | — | Prometheus 指标、OpenTelemetry 追踪、Docker、CI/CD |
+| P5: 行情 & 事件研究 | ✅ 完成 | 35 | Tushare/Polygon 数据源、CAPM 异常收益、统计显著性检验 |
+| P6: 评测 & QA | ✅ 完成 | 35 | Golden 测试集、准确率指标、回归检测 |
+| P7: 可观测 & DevOps | ✅ 完成 | 35 | Prometheus 指标、OpenTelemetry 追踪、Docker、CI/CD |

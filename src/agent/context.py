@@ -127,7 +127,12 @@ def _append_retrieved_sources(
         return tokens_used
 
     lang = state.doc_meta.language or "auto"
-    index = build_rag_index(state.chunks, state.tables, lang=lang)
+    # Reuse cached RAG index from state.debug if available
+    rag_index = state.debug.get("_rag_index")
+    if rag_index is None:
+        rag_index = build_rag_index(state.chunks, state.tables, lang=lang)
+        state.debug["_rag_index"] = rag_index
+    index = rag_index
     seen: set[tuple[str, str]] = set()
     for query in _CONTEXT_QUERIES:
         for document in index.search(query, k=6):

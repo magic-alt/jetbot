@@ -1,6 +1,8 @@
 """Prometheus metrics collector for the Financial Report Agent."""
 from __future__ import annotations
 
+from typing import Any
+
 # Try to import prometheus_client; provide no-op fallback if not installed
 try:
     from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
@@ -12,6 +14,15 @@ class MetricsCollector:
     """Collects application metrics. Falls back to no-op if prometheus_client is not installed."""
 
     def __init__(self) -> None:
+        self._enabled = _HAS_PROMETHEUS
+        # Always define attributes for type checking, even when prometheus is absent.
+        self.pipeline_runs: Any = None
+        self.pipeline_duration: Any = None
+        self.node_duration: Any = None
+        self.llm_calls: Any = None
+        self.llm_tokens: Any = None
+        self.active_analyses: Any = None
+        self.pdf_pages: Any = None
         if _HAS_PROMETHEUS:
             self.pipeline_runs = Counter("pipeline_runs_total", "Total pipeline runs", ["status"])
             self.pipeline_duration = Histogram("pipeline_duration_seconds", "Pipeline duration in seconds", buckets=[1, 5, 10, 30, 60, 120, 300])
@@ -20,7 +31,6 @@ class MetricsCollector:
             self.llm_tokens = Counter("llm_tokens_total", "Total tokens used", ["model", "direction"])
             self.active_analyses = Gauge("active_analyses", "Currently running analyses")
             self.pdf_pages = Histogram("pdf_pages_total", "PDF page count per document", buckets=[1, 5, 10, 25, 50, 100, 200])
-        self._enabled = _HAS_PROMETHEUS
 
     def record_pipeline_run(self, status: str = "success") -> None:
         if self._enabled:

@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-This repository implements a financial-report PDF parsing and analysis agent. It targets a Python 3.11+ stack with FastAPI, LangGraph, PyMuPDF/pdfplumber, and Pydantic v2. Keep changes focused on the MVP pipeline and ensure all analysis outputs are traceable to source evidence.
+This repository implements a financial-report PDF parsing and analysis agent. It targets a Python 3.12+ stack with FastAPI, LangGraph, PyMuPDF/pdfplumber, and Pydantic v2. Keep changes focused on the MVP pipeline and ensure all analysis outputs are traceable to source evidence.
 
 ## Project Structure & Module Organization
 
@@ -10,7 +10,7 @@ This repository implements a financial-report PDF parsing and analysis agent. It
 - `src/finance/`: schemas, normalization, validators, risk signals.
 - `src/llm/`: LLM abstraction + mock and OpenAI clients.
 - `src/prompts/`: prompt templates for extraction and reporting.
-- `src/storage/`: local JSON/SQLite storage and task tracking.
+- `src/storage/`: local/PostgreSQL + S3/MinIO storage and task tracking.
 - `src/utils/`: logging, IDs, time helpers.
 - `tests/`: pytest unit tests and pipeline mock tests.
 - `data/`: runtime outputs (ignored by git).

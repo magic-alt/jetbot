@@ -80,6 +80,25 @@ class MarketDataCache:
         path = self._cache_dir / f"{key}.json"
         path.unlink(missing_ok=True)
 
+    def cleanup_expired(self) -> int:
+        """Remove expired cache files. Returns the number of files removed."""
+        removed = 0
+        if not self._cache_dir.exists():
+            return removed
+        now = time.time()
+        for cache_file in self._cache_dir.glob("*.json"):
+            try:
+                raw = json.loads(cache_file.read_text(encoding="utf-8"))
+                created_at = raw.get("created_at", 0)
+                if now - created_at > self._ttl:
+                    cache_file.unlink(missing_ok=True)
+                    removed += 1
+            except (json.JSONDecodeError, OSError):
+                # Corrupted file — remove it
+                cache_file.unlink(missing_ok=True)
+                removed += 1
+        return removed
+
     def clear(self) -> int:
         """Remove all cache entries. Returns count of removed files."""
         if not self._cache_dir.exists():

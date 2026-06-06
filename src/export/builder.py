@@ -132,7 +132,7 @@ def _compute_core_metrics(
     # ── 1. Revenue growth ─────────────────────────────────────────────
     if income is not None:
         rev_cur, rev_item = _find_item_value(income.line_items, _REVENUE_ALIASES)
-        if rev_cur and rev_item and rev_item.value_prior is not None and rev_item.value_prior != 0:
+        if rev_cur is not None and rev_item is not None and rev_item.value_prior is not None and rev_item.value_prior != 0:
             growth = (rev_cur - rev_item.value_prior) / abs(rev_item.value_prior)
             exported.append(ExportedFact(
                 metric="revenue_growth",
@@ -149,7 +149,7 @@ def _compute_core_metrics(
     # ── 2. Net profit growth ──────────────────────────────────────────
     if income is not None:
         np_cur, np_item = _find_item_value(income.line_items, _NET_PROFIT_ALIASES)
-        if np_cur and np_item and np_item.value_prior is not None and np_item.value_prior != 0:
+        if np_cur is not None and np_item is not None and np_item.value_prior is not None and np_item.value_prior != 0:
             growth = (np_cur - np_item.value_prior) / abs(np_item.value_prior)
             exported.append(ExportedFact(
                 metric="net_profit_growth",
@@ -172,7 +172,7 @@ def _compute_core_metrics(
             cogs_val, _ = _find_item_value(income.line_items, _COGS_ALIASES)
             if cogs_val is not None:
                 gp_val = rev_val - cogs_val
-        if rev_val and gp_val and rev_val != 0:
+        if rev_val is not None and gp_val is not None and rev_val != 0:
             margin = gp_val / rev_val
             exported.append(ExportedFact(
                 metric="gross_margin",
@@ -206,7 +206,7 @@ def _compute_core_metrics(
     if balance is not None:
         ta_val, ta_item = _find_item_value(balance.line_items, _TOTAL_ASSETS_ALIASES)
         tl_val, tl_item = _find_item_value(balance.line_items, _TOTAL_LIABILITIES_ALIASES)
-        if ta_val and tl_val and ta_val != 0:
+        if ta_val is not None and tl_val is not None and ta_val != 0:
             ratio = tl_val / ta_val
             exported.append(ExportedFact(
                 metric="debt_ratio",

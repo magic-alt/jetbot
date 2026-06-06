@@ -105,7 +105,7 @@ python -m src.cli analyze --pdf path/to/report.pdf --out data --company "Example
 ### Run the bundled real-PDF example
 
 ```bash
-python examples/real_pdf_analysis/run_example.py
+python examples/apple_10k_analysis/run_example.py
 ```
 
 ### Call the API directly

@@ -7,7 +7,11 @@ from src.schemas.models import FinancialStatement, KeyNote, RiskSignal, SourceRe
 from src.utils.ids import new_doc_id
 
 
-AUDIT_KEYWORDS = ["保留意见", "无法表示意见", "否定意见", "强调事项"]
+AUDIT_KEYWORDS = [
+    "保留意见", "无法表示意见", "否定意见", "强调事项",
+    "qualified opinion", "adverse opinion", "disclaimer of opinion",
+    "going concern", "material uncertainty",
+]
 
 
 def generate_signals(
@@ -129,11 +133,16 @@ def _audit_governance_signal(
     combined += "\n".join(pages_text[:2])
     for keyword in AUDIT_KEYWORDS:
         if keyword in combined:
+            severity: Literal["low", "medium", "high"] = (
+                "medium"
+                if keyword in {"强调事项", "going concern", "material uncertainty"}
+                else "high"
+            )
             return RiskSignal(
                 signal_id=new_doc_id(),
                 category="audit_governance",
                 title="Audit opinion flags",
-                severity="medium" if keyword == "强调事项" else "high",
+                severity=severity,
                 description=f"Audit opinion contains keyword: {keyword}.",
                 metrics={"keyword": keyword},
                 evidence=fallback,
