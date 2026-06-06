@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import os
+import threading
 
 from langgraph.graph import END, StateGraph
 
@@ -25,11 +26,23 @@ from src.agent.state import AgentState
 # Cache AgentState instances by doc_id to avoid repeated full
 # model_validate/model_dump round-trips on every node transition.
 _state_cache: dict[str, AgentState] = {}
+_state_cache_lock = threading.Lock()
+
+# Shared executor for per-node timeout enforcement.
+# Using a shared pool avoids the overhead of creating/destroying an executor
+# on every node transition.
+_timeout_executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=2, thread_name_prefix="node-timeout"
+)
+
+# Cached node timeout value (0 means no limit).
+_NODE_TIMEOUT_S = int(os.getenv("NODE_TIMEOUT_S", "120"))
 
 
 def get_cached_state(doc_id: str) -> AgentState | None:
     """Return the most recently cached AgentState for *doc_id*, or None."""
-    return _state_cache.get(doc_id)
+    with _state_cache_lock:
+        return _state_cache.get(doc_id)
 
 
 def build_graph():
@@ -70,7 +83,7 @@ def build_graph():
     return graph.compile()
 
 
-def _should_retry(state) -> str:
+def _should_retry(state: dict | AgentState) -> str:
     # Handle both dict and AgentState instances
     if isinstance(state, dict):
         errors = state.get("errors", [])
@@ -94,31 +107,35 @@ def _wrap(fn, *, cleanup_cache: bool = False):
             doc_id = doc_meta.get("doc_id", "") if isinstance(doc_meta, dict) else ""
 
             # Reuse cached AgentState to skip expensive model_validate
-            if doc_id and doc_id in _state_cache:
-                state_obj = _state_cache[doc_id]
+            if doc_id:
+                with _state_cache_lock:
+                    cached = _state_cache.get(doc_id)
+                if cached is not None:
+                    state_obj = cached
+                else:
+                    state_obj = AgentState.model_validate(state)
             else:
                 state_obj = AgentState.model_validate(state)
 
         # Per-node timeout (0 means no limit)
-        timeout_s = int(os.getenv("NODE_TIMEOUT_S", "120"))
-        if timeout_s > 0:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(fn, state_obj)
-                try:
-                    next_state = future.result(timeout=timeout_s)
-                except concurrent.futures.TimeoutError:
-                    state_obj.errors.append(
-                        f"{fn.__name__}_timeout:{timeout_s}s"
-                    )
-                    next_state = state_obj
+        if _NODE_TIMEOUT_S > 0:
+            future = _timeout_executor.submit(fn, state_obj)
+            try:
+                next_state = future.result(timeout=_NODE_TIMEOUT_S)
+            except concurrent.futures.TimeoutError:
+                state_obj.errors.append(
+                    f"{fn.__name__}_timeout:{_NODE_TIMEOUT_S}s"
+                )
+                next_state = state_obj
         else:
             next_state = fn(state_obj)
 
         if doc_id:
-            if cleanup_cache:
-                _state_cache.pop(doc_id, None)
-            else:
-                _state_cache[doc_id] = next_state
+            with _state_cache_lock:
+                if cleanup_cache:
+                    _state_cache.pop(doc_id, None)
+                else:
+                    _state_cache[doc_id] = next_state
 
         return next_state.model_dump()
 
