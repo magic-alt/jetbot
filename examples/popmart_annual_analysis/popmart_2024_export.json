@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.0",
+  "symbol": "9992.HK",
+  "company": "泡泡玛特",
+  "period": "2024Q4",
+  "period_end": "2024-12-31",
+  "source_document": "popmart_2024_annual.pdf",
+  "doc_id": "d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1",
+  "generated_at": "2026-06-07T00:00:00.000000Z",
+  "facts": [
+    {
+      "metric": "revenue_growth",
+      "value": 1.069,
+      "unit": "ratio",
+      "label": "营收增长率",
+      "source_page": 12,
+      "confidence": 0.92,
+      "raw_value": 13038000000.0,
+      "raw_unit": "CNY",
+      "computation": "(current=13038000000.0 - prior=6301000000.0) / |prior|"
+    },
+    {
+      "metric": "net_profit_growth",
+      "value": 1.857,
+      "unit": "ratio",
+      "label": "净利润增长率",
+      "source_page": 12,
+      "confidence": 0.92,
+      "raw_value": 3400000000.0,
+      "raw_unit": "CNY",
+      "computation": "(current=3400000000.0 - prior=1190000000.0) / |prior|"
+    },
+    {
+      "metric": "gross_margin",
+      "value": 0.668,
+      "unit": "ratio",
+      "label": "毛利率",
+      "source_page": 14,
+      "confidence": 0.92,
+      "raw_value": 8709000000.0,
+      "raw_unit": "CNY",
+      "computation": "gross_profit=8709000000.0 / revenue=13038000000.0"
+    },
+    {
+      "metric": "operating_cash_flow",
+      "value": 8476000000.0,
+      "unit": "CNY",
+      "label": "经营现金流",
+      "source_page": 18,
+      "confidence": 0.88,
+      "raw_value": 8476000000.0,
+      "raw_unit": "CNY",
+      "computation": "net_cash_from_operating_activities"
+    },
+    {
+      "metric": "debt_ratio",
+      "value": 0.268,
+      "unit": "ratio",
+      "label": "资产负债率",
+      "source_page": 16,
+      "confidence": 0.92,
+      "raw_value": 3986000000.0,
+      "raw_unit": "CNY",
+      "computation": "total_liabilities=3986000000.0 / total_assets=14871000000.0"
+    }
+  ],
+  "risk_signals": [
+    {
+      "category": "geographic_concentration",
+      "title": "海外营收占比快速提升",
+      "severity": "medium",
+      "description": "2024年海外收入占比从2023年的约15%跃升至30%以上，海外门店数量大幅增长。快速地理扩张带来汇率波动、合规成本及供应链复杂度上升等风险。东南亚市场表现尤为突出，但单一区域高增长可能难以持续。",
+      "metrics": {
+        "overseas_revenue_share_2024_pct": 30.0,
+        "overseas_revenue_share_2023_pct": 15.0,
+        "overseas_revenue_growth_pct": 375.0
+      }
+    },
+    {
+      "category": "ip_concentration",
+      "title": "头部IP集中度风险",
+      "severity": "medium",
+      "description": "Molly、SKULLPANDA、The Monsters（Labubu）等头部IP贡献了超过60%的收入。Labubu在2024年因泰国公主效应爆火，但单一IP热度的周期性波动可能对短期业绩产生较大影响。公司正在积极孵化新IP以降低集中度。",
+      "metrics": {
+        "top3_ip_revenue_share_pct": 42.0,
+        "labubu_revenue_2024_billion_cny": 3.0,
+        "total_ip_count": 78
+      }
+    },
+    {
+      "category": "valuation_sustainability",
+      "title": "高增长可持续性存疑",
+      "severity": "low",
+      "description": "2024年营收翻倍、净利润增长近3倍，但潮玩行业竞争加剧（52TOYS、TOP TOY等），消费者偏好存在周期性。当前估值已隐含较高增长预期，需关注2025年增速是否可持续。",
+      "metrics": {
+        "revenue_growth_2024_pct": 106.9,
+        "net_profit_growth_2024_pct": 185.7,
+        "industry_competitors": "52TOYS, TOP TOY, MEDICOM TOY"
+      }
+    },
+    {
+      "category": "cash_vs_profit",
+      "title": "经营现金流远超净利润",
+      "severity": "low",
+      "description": "经营现金流84.76亿元为净利润34亿元的2.5倍，现金转化率极高。这主要受益于盲盒预售模式和较低的资本开支需求。正向信号，但需关注预收款变化是否暗示渠道库存积压。",
+      "metrics": {
+        "operating_cf_2024": 8476000000.0,
+        "net_income_2024": 3400000000.0,
+        "cash_conversion_ratio": 2.49
+      }
+    }
+  ],
+  "metadata": {
+    "filing_type": "annual",
+    "report_type": "annual_results",
+    "language": "zh",
+    "corrections_applied": false,
+    "total_raw_facts": 15
+  }
+}

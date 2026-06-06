@@ -1,0 +1,4 @@
+# Ignore large PDF and generated data
+*.pdf
+data/
+!apple_fy2024_export.json

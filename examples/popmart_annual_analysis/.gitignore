@@ -1,0 +1,4 @@
+# Ignore large PDF and generated data
+*.pdf
+data/
+!popmart_2024_export.json

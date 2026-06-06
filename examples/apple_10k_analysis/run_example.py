@@ -1,13 +1,14 @@
-"""贵州茅台跨项目集成案例：PDF 分析 → 财务事实导出 → stock 基本面过滤。
+"""Apple FY2024 10-K cross-project integration example.
 
-Downloads the Guizhou Moutai 2025 annual report, runs the full jetbot
-analysis pipeline, exports normalised financial facts (schema v1.0),
-and optionally imports into the ``stock`` project for fundamental filtering.
+Downloads the Apple 10-K annual report (FY2024, ending Sep 28 2024),
+runs the full jetbot analysis pipeline, exports normalised financial
+facts (schema v1.0), and optionally imports into the ``stock`` project
+for fundamental filtering.
 
 Usage:
-    python examples/real_pdf_analysis/run_example.py
-    python examples/real_pdf_analysis/run_example.py --url <other.pdf>
-    python examples/real_pdf_analysis/run_example.py --keep-data
+    python examples/apple_10k_analysis/run_example.py
+    python examples/apple_10k_analysis/run_example.py --url <other.pdf>
+    python examples/apple_10k_analysis/run_example.py --skip-stock
 """
 
 from __future__ import annotations
@@ -20,17 +21,17 @@ import urllib.request
 from datetime import date
 from pathlib import Path
 
-# ── Defaults: Guizhou Moutai 2025 Annual Report ─────────────────────────
+# -- Defaults: Apple 10-K FY2024 -----------------------------------------
 
 DEFAULT_URL = (
-    "https://www.moutaichina.com/mtgf/articleFileDir/"
-    "2026-04/17/07cf01cc11a14ea18cfadf9ebe2a4eb3.pdf"
+    "https://www.sec.gov/Archives/edgar/data/320193/"
+    "000032019324000123/aapl-20240928.htm"
 )
-DEFAULT_COMPANY = "贵州茅台"
-DEFAULT_TICKER = "600519.SH"
-DEFAULT_PERIOD_END = "2025-12-31"
+DEFAULT_COMPANY = "Apple Inc."
+DEFAULT_TICKER = "AAPL"
+DEFAULT_PERIOD_END = "2024-09-28"
 DEFAULT_FILING_TYPE = "annual"
-DEFAULT_LANGUAGE = "zh"
+DEFAULT_LANGUAGE = "en"
 
 USER_AGENT = "jetbot-example/0.1 (+https://github.com/magic-alt/jetbot)"
 
@@ -39,7 +40,7 @@ EXAMPLE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = EXAMPLE_DIR / "output"
 
 
-# ── PDF download ─────────────────────────────────────────────────────────
+# -- PDF download ---------------------------------------------------------
 
 
 def download_pdf(url: str, dest: Path) -> Path:
@@ -53,13 +54,13 @@ def download_pdf(url: str, dest: Path) -> Path:
     with urllib.request.urlopen(req, timeout=120) as resp, dest.open("wb") as fh:
         shutil.copyfileobj(resp, fh)
     size = dest.stat().st_size
-    print(f"[download] OK → {dest} ({size:,} bytes)")
+    print(f"[download] OK -> {dest} ({size:,} bytes)")
     if size < 1024:
         raise RuntimeError(f"Downloaded file is suspiciously small: {size} bytes")
     return dest
 
 
-# ── Analysis pipeline ────────────────────────────────────────────────────
+# -- Analysis pipeline ----------------------------------------------------
 
 
 def run_pipeline(
@@ -102,11 +103,11 @@ def run_pipeline(
     )
     print(f"[analyze] doc_id={doc_id}  company={company}  ticker={ticker}")
     build_graph().invoke(state.model_dump())
-    print(f"[analyze] complete → {out_dir / doc_id / 'report' / 'trader_report.md'}")
+    print(f"[analyze] complete -> {out_dir / doc_id / 'report' / 'trader_report.md'}")
     return doc_id
 
 
-# ── Export ────────────────────────────────────────────────────────────────
+# -- Export ----------------------------------------------------------------
 
 
 def export_facts(out_dir: Path, doc_id: str, ticker: str) -> dict:
@@ -115,6 +116,7 @@ def export_facts(out_dir: Path, doc_id: str, ticker: str) -> dict:
     from src.export.builder import build_export  # noqa: E402
     from src.finance.facts import apply_corrections  # noqa: E402
     from src.schemas.models import (  # noqa: E402
+        Correction,
         DocumentMeta,
         FinancialFact,
         FinancialStatement,
@@ -126,16 +128,12 @@ def export_facts(out_dir: Path, doc_id: str, ticker: str) -> dict:
 
     meta = DocumentMeta.model_validate(store.load_meta(doc_id))
     stmts_raw = store.load_json(doc_id, "extracted/statements.json") or {}
-    statements = {}
-    for key, val in stmts_raw.items():
-        statements[key] = FinancialStatement.model_validate(val)
+    statements = {key: FinancialStatement.model_validate(val) for key, val in stmts_raw.items()}
 
     facts_raw = store.load_json(doc_id, "extracted/facts.json") or []
     facts = [FinancialFact.model_validate(f) for f in facts_raw]
 
     corrections_raw = store.load_json(doc_id, "extracted/corrections.json") or []
-    from src.schemas.models import Correction
-
     corrections = [Correction.model_validate(c) for c in corrections_raw]
     if corrections:
         facts = apply_corrections(facts, corrections)
@@ -160,7 +158,7 @@ def export_facts(out_dir: Path, doc_id: str, ticker: str) -> dict:
     data = envelope.model_dump(mode="json")
     n_facts = len(data.get("facts", []))
     n_signals = len(data.get("risk_signals", []))
-    print(f"[export] {n_facts} facts, {n_signals} risk signals → {export_path}")
+    print(f"[export] {n_facts} facts, {n_signals} risk signals -> {export_path}")
     return data
 
 
@@ -174,10 +172,7 @@ def print_core_metrics(envelope: dict) -> None:
     print(f"  {'─' * 25} {'─' * 18}  {'─' * 15}")
     for f in facts:
         v = f["value"]
-        if abs(v) < 10:
-            formatted = f"{v:.4f}"
-        else:
-            formatted = f"{v:,.2f}"
+        formatted = f"{v:.4f}" if abs(v) < 10 else f"{v:,.2f}"
         print(f"  {f['metric']:<25s} {formatted:>18s}  {f['label']}")
 
 
@@ -192,22 +187,22 @@ def print_risk_signals(envelope: dict) -> None:
         print(f"  [{sev:6s}] {sig['category']}: {sig['title']}")
 
 
-# ── Cross-project: stock integration ────────────────────────────────────
+# -- Cross-project: stock integration ------------------------------------
 
 
 def try_stock_integration(envelope: dict, ticker: str) -> None:
     """If the stock project is a sibling, run FundamentalFilter demo."""
     stock_dir = REPO_ROOT.parent / "stock"
     if not stock_dir.exists():
-        print("\n[stock] stock 项目未找到（需与 jetbot 同级目录），跳过集成演示")
+        print("\n[stock] stock project not found (expected sibling of jetbot), skipping")
         return
 
     stock_export_dir = stock_dir / "jetbot_exports"
     stock_export_dir.mkdir(exist_ok=True)
-    export_dest = stock_export_dir / "moutai_2025_export.json"
+    export_dest = stock_export_dir / "apple_fy2024_export.json"
     with open(export_dest, "w", encoding="utf-8") as f:
         json.dump(envelope, f, ensure_ascii=False, indent=2)
-    print(f"\n[stock] 导出文件已复制到 {export_dest}")
+    print(f"\n[stock] Export copied to {export_dest}")
 
     try:
         sys.path.insert(0, str(stock_dir))
@@ -219,34 +214,34 @@ def try_stock_integration(envelope: dict, ticker: str) -> None:
 
         provider = JetbotFactsProvider(export_dir=str(stock_export_dir), min_confidence=0.5)
         envelopes = provider.load()
-        print(f"[stock] 加载 {len(envelopes)} 个导出信封")
+        print(f"[stock] Loaded {len(envelopes)} export envelope(s)")
 
         # Default thresholds
         filt = FundamentalFilter(provider)
         result = filt.score_symbol(ticker)
-        print(f"[stock] 默认阈值: {result.summary()}")
+        print(f"[stock] Default thresholds: {result.summary()}")
 
-        # Relaxed thresholds (allow slight negative growth)
+        # Relaxed thresholds (allow one-time tax charge impact)
         relaxed = FundamentalThresholds(
-            revenue_growth_min=-0.05,
+            revenue_growth_min=0.0,
             net_profit_growth_min=-0.10,
             gross_margin_min=0.30,
-            debt_ratio_max=0.70,
+            debt_ratio_max=0.85,
         )
         relaxed_filt = FundamentalFilter(provider, relaxed)
         relaxed_result = relaxed_filt.score_symbol(ticker)
-        print(f"[stock] 放宽阈值: {relaxed_result.summary()}")
+        print(f"[stock] Relaxed thresholds: {relaxed_result.summary()}")
 
         # Factor DataFrame
         factors = provider.build_fundamental_factors()
-        print(f"[stock] 因子 DataFrame shape: {factors.shape}")
+        print(f"[stock] Factor DataFrame shape: {factors.shape}")
         print(f"  {factors.to_string()}")
 
     except ImportError as exc:
-        print(f"[stock] 导入失败（跳过）: {exc}")
+        print(f"[stock] Import failed (skipped): {exc}")
 
 
-# ── Summarize ────────────────────────────────────────────────────────────
+# -- Summarize ------------------------------------------------------------
 
 
 def summarize(out_dir: Path, doc_id: str) -> None:
@@ -257,7 +252,7 @@ def summarize(out_dir: Path, doc_id: str) -> None:
     signals = doc_dir / "extracted" / "risk_signals.json"
     export_json = doc_dir / "exported_facts.json"
 
-    print("\n===== 输出文件 =====")
+    print("\n===== Output Files =====")
     for p in (statements, signals, export_json, report_md):
         marker = "OK " if p.exists() else "-- "
         size = f"{p.stat().st_size:,} B" if p.exists() else "missing"
@@ -266,11 +261,11 @@ def summarize(out_dir: Path, doc_id: str) -> None:
     if report_md.exists():
         text = report_md.read_text(encoding="utf-8")
         head = "\n".join(text.splitlines()[:30])
-        print("\n===== trader_report.md (前 30 行) =====")
+        print("\n===== trader_report.md (first 30 lines) =====")
         print(head)
 
 
-# ── CLI ──────────────────────────────────────────────────────────────────
+# -- CLI ------------------------------------------------------------------
 
 
 def parse_args() -> argparse.Namespace:
@@ -300,17 +295,17 @@ def main() -> int:
         shutil.rmtree(OUTPUT_DIR)
 
     print("=" * 70)
-    print("  贵州茅台跨项目集成案例 — jetbot → stock")
+    print("  Apple FY2024 10-K -- jetbot -> stock cross-project integration")
     print("=" * 70)
 
     # Step 1: Download PDF
-    print("\n[Step 1] 下载财报 PDF...")
+    print("\n[Step 1] Downloading 10-K PDF...")
     pdf_name = args.url.rsplit("/", 1)[-1] or "report.pdf"
     pdf_path = EXAMPLE_DIR / "fixtures" / pdf_name
     download_pdf(args.url, pdf_path)
 
     # Step 2: Run analysis pipeline
-    print("\n[Step 2] 运行 jetbot 分析管线...")
+    print("\n[Step 2] Running jetbot analysis pipeline...")
     doc_id = run_pipeline(
         pdf_path=pdf_path,
         out_dir=OUTPUT_DIR,
@@ -322,22 +317,22 @@ def main() -> int:
     )
 
     # Step 3: Export facts
-    print("\n[Step 3] 导出统一格式财务事实 (schema v1.0)...")
+    print("\n[Step 3] Exporting financial facts (schema v1.0)...")
     envelope = export_facts(OUTPUT_DIR, doc_id, args.ticker)
     print_core_metrics(envelope)
     print_risk_signals(envelope)
 
     # Step 4: Summarize outputs
-    print("\n[Step 4] 输出文件汇总...")
+    print("\n[Step 4] Output summary...")
     summarize(OUTPUT_DIR, doc_id)
 
     # Step 5: Cross-project stock integration
     if not args.skip_stock:
-        print("\n[Step 5] 跨项目集成: stock 基本面过滤...")
+        print("\n[Step 5] Cross-project: stock fundamental filter...")
         try_stock_integration(envelope, args.ticker)
 
     print("\n" + "=" * 70)
-    print("  案例运行完成!")
+    print("  Example complete!")
     print("=" * 70)
     return 0
 

@@ -1,0 +1,112 @@
+{
+  "schema_version": "1.0",
+  "symbol": "AAPL",
+  "company": "Apple Inc.",
+  "period": "2024Q4",
+  "period_end": "2024-09-28",
+  "source_document": "apple_fy2024_10k.pdf",
+  "doc_id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+  "generated_at": "2026-06-07T00:00:00.000000Z",
+  "facts": [
+    {
+      "metric": "revenue_growth",
+      "value": 0.0202,
+      "unit": "ratio",
+      "label": "Revenue Growth",
+      "source_page": 38,
+      "confidence": 0.95,
+      "raw_value": 391035000000.0,
+      "raw_unit": "USD",
+      "computation": "(current=391035000000.0 - prior=383285000000.0) / |prior|"
+    },
+    {
+      "metric": "net_profit_growth",
+      "value": -0.034,
+      "unit": "ratio",
+      "label": "Net Income Growth",
+      "source_page": 38,
+      "confidence": 0.95,
+      "raw_value": 93736000000.0,
+      "raw_unit": "USD",
+      "computation": "(current=93736000000.0 - prior=96995000000.0) / |prior|"
+    },
+    {
+      "metric": "gross_margin",
+      "value": 0.4629,
+      "unit": "ratio",
+      "label": "Gross Margin",
+      "source_page": 38,
+      "confidence": 0.95,
+      "raw_value": 180988000000.0,
+      "raw_unit": "USD",
+      "computation": "gross_profit=180988000000.0 / revenue=391035000000.0"
+    },
+    {
+      "metric": "operating_cash_flow",
+      "value": 110000000000.0,
+      "unit": "USD",
+      "label": "Operating Cash Flow",
+      "source_page": 42,
+      "confidence": 0.95,
+      "raw_value": 110000000000.0,
+      "raw_unit": "USD",
+      "computation": "net_cash_from_operating_activities"
+    },
+    {
+      "metric": "debt_ratio",
+      "value": 0.7948,
+      "unit": "ratio",
+      "label": "Debt Ratio",
+      "source_page": 40,
+      "confidence": 0.95,
+      "raw_value": 285508000000.0,
+      "raw_unit": "USD",
+      "computation": "total_liabilities=285508000000.0 / total_assets=359241000000.0"
+    }
+  ],
+  "risk_signals": [
+    {
+      "category": "one_offs",
+      "title": "EU State Aid Tax Charge Impact on Net Income",
+      "severity": "medium",
+      "description": "Net income declined 3.4% despite 2.0% revenue growth, primarily due to a one-time $10B EU state aid tax charge recognized in Q4 FY2024. Excluding this charge, adjusted net income would have grown approximately 7% YoY, consistent with operational performance.",
+      "metrics": {
+        "net_income_2024": 93736000000.0,
+        "net_income_2023": 96995000000.0,
+        "eu_tax_charge": 10000000000.0,
+        "adjusted_ni_growth_pct": 7.0
+      }
+    },
+    {
+      "category": "leverage",
+      "title": "Elevated Debt-to-Asset Ratio",
+      "severity": "medium",
+      "description": "Total liabilities of $285.5B represent 79.5% of total assets ($359.2B). However, the majority consists of operational liabilities (trade payables, deferred revenue) rather than interest-bearing debt. Net debt is significantly lower at approximately $80B after offsetting $205B in cash and marketable securities.",
+      "metrics": {
+        "total_liabilities": 285508000000.0,
+        "total_assets": 359241000000.0,
+        "debt_ratio": 0.7948,
+        "cash_and_securities": 205000000000.0,
+        "net_debt_approx": 80000000000.0
+      }
+    },
+    {
+      "category": "working_capital",
+      "title": "Services Revenue Growing Faster Than Products",
+      "severity": "low",
+      "description": "Services revenue continues to grow at double-digit rates, representing an increasing share of total revenue. This shift improves recurring revenue quality but may attract regulatory scrutiny regarding App Store practices and commission rates.",
+      "metrics": {
+        "services_revenue_2024": 96000000000.0,
+        "services_share_pct": 24.5,
+        "services_growth_pct": 13.5
+      }
+    }
+  ],
+  "metadata": {
+    "filing_type": "annual",
+    "report_type": "10-K",
+    "language": "en",
+    "corrections_applied": false,
+    "total_raw_facts": 12
+  }
+}
