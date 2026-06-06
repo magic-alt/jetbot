@@ -698,3 +698,73 @@ def _save_partial_results(doc_id: str) -> None:
             s.save_json(doc_id, "extracted/agent_runs.json", [run.model_dump(mode="json") for run in partial.agent_runs])
     except Exception:
         pass
+
+
+# ── Export endpoint (cross-project integration) ──────────────────────────
+
+
+@router.get("/documents/{doc_id}/export")
+def export_financial_facts(doc_id: str, effective: bool = True):
+    """Return a normalised financial-facts envelope for downstream consumption.
+
+    The envelope contains the five core metrics (revenue_growth,
+    net_profit_growth, gross_margin, operating_cash_flow, debt_ratio)
+    derived from the extracted statements, plus risk signals.
+
+    Set ``effective=false`` to export raw facts without user corrections.
+    """
+    from src.export.builder import build_export
+    from src.schemas.models import FinancialStatement, RiskSignal
+
+    meta_raw = store.load_json(doc_id, "meta.json")
+    if meta_raw is None:
+        _err("not_found", f"Document {doc_id} not found")
+    meta = DocumentMeta.model_validate(meta_raw)
+
+    # Load statements
+    stmts_raw = store.load_json(doc_id, "extracted/statements.json")
+    statements: dict[str, FinancialStatement] = {}
+    if stmts_raw:
+        for key, val in stmts_raw.items():
+            try:
+                statements[key] = FinancialStatement.model_validate(val)
+            except Exception:
+                continue
+
+    # Load facts (effective or raw)
+    facts_raw = store.load_json(doc_id, "extracted/facts.json") or []
+    facts = []
+    for f in facts_raw:
+        try:
+            facts.append(FinancialFact.model_validate(f))
+        except Exception:
+            continue
+
+    if effective:
+        corrections_raw = store.load_json(doc_id, "extracted/corrections.json") or []
+        corrections = []
+        for c in corrections_raw:
+            try:
+                corrections.append(Correction.model_validate(c))
+            except Exception:
+                continue
+        if corrections:
+            facts = apply_corrections(facts, corrections)
+
+    # Load risk signals
+    signals_raw = store.load_json(doc_id, "extracted/risk_signals.json") or []
+    risk_signals: list[RiskSignal] = []
+    for s in signals_raw:
+        try:
+            risk_signals.append(RiskSignal.model_validate(s))
+        except Exception:
+            continue
+
+    envelope = build_export(
+        meta=meta,
+        statements=statements,
+        facts=facts,
+        risk_signals=risk_signals,
+        corrections_applied=effective and bool(corrections_raw) if corrections_raw else False,
+    )
+    return _ok(envelope.model_dump(mode="json"))
