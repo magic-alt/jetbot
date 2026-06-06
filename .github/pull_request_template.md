@@ -15,11 +15,20 @@ must land via this PR. Please complete the checklist below.
 
 ## How was this tested?
 
-<!-- Commands you ran, sample outputs, screenshots, etc. -->
+<!-- Commands you ran, key output, screenshots, etc. -->
 
 ```bash
 bash scripts/local_ci.sh
 ```
+
+## Compatibility & Risk
+
+<!-- Does this change break existing APIs, storage schemas, or env vars? -->
+<!-- Are there LLM prompt changes that could affect extraction quality? -->
+
+## Rollback Plan
+
+<!-- How to revert if this causes issues? -->
 
 ## Checklist
 

@@ -1,5 +1,10 @@
 # Jetbot
 
+[![Python Version](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![CI](https://github.com/magic-alt/jetbot/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/magic-alt/jetbot/actions/workflows/ci.yml)
+[![Docker Image](https://img.shields.io/badge/docker-ghcr.io-blue?logo=docker)](https://github.com/magic-alt/jetbot/pkgs/container/jetbot)
+
 Jetbot is a Filing-to-Model Copilot and Financial Fact Platform for evidence-backed financial report extraction. It turns PDF filings into canonical financial facts, structured statements, key notes, risk signals, event-study outputs, and analyst-ready summaries.
 
 It is designed for teams that need a single workflow to ingest reports, inspect source evidence, review and correct extracted facts, and ship the results through an API, a CLI, exports, or a browser UI.
