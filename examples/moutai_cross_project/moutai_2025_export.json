@@ -1,0 +1,156 @@
+{
+  "schema_version": "1.0",
+  "symbol": "600519.SH",
+  "company": "贵州茅台",
+  "period": "2025Q4",
+  "period_end": "2025-12-31",
+  "source_document": "moutai_2025_annual.pdf",
+  "doc_id": "bc764f45b66f4cff8706a2efd3c51d84",
+  "generated_at": "2026-06-06T15:45:44.566235Z",
+  "facts": [
+    {
+      "metric": "revenue_growth",
+      "value": -0.01206,
+      "unit": "ratio",
+      "label": "营收增长率",
+      "source_page": 6,
+      "confidence": 0.65,
+      "raw_value": 168838102514.79,
+      "raw_unit": "CNY",
+      "computation": "(current=168838102514.79 - prior=170899152276.34) / |prior|"
+    },
+    {
+      "metric": "net_profit_growth",
+      "value": -0.045323,
+      "unit": "ratio",
+      "label": "净利润增长率",
+      "source_page": 6,
+      "confidence": 0.65,
+      "raw_value": 82320067101.68,
+      "raw_unit": "CNY",
+      "computation": "(current=82320067101.68 - prior=86228146421.62) / |prior|"
+    },
+    {
+      "metric": "gross_margin",
+      "value": 0.911796,
+      "unit": "ratio",
+      "label": "毛利率",
+      "source_page": 6,
+      "confidence": 0.65,
+      "raw_value": 153945824943.88,
+      "raw_unit": "CNY",
+      "computation": "gross_profit=153945824943.88 / revenue=168838102514.79"
+    },
+    {
+      "metric": "operating_cash_flow",
+      "value": 61522204989.35,
+      "unit": "CNY",
+      "label": "经营现金流",
+      "source_page": 6,
+      "confidence": 0.65,
+      "raw_value": 61522204989.35,
+      "raw_unit": "CNY",
+      "computation": "net_cash_from_operating_activities"
+    },
+    {
+      "metric": "debt_ratio",
+      "value": 0.163281,
+      "unit": "ratio",
+      "label": "资产负债率",
+      "source_page": 58,
+      "confidence": 0.65,
+      "raw_value": 49610476817.81,
+      "raw_unit": "CNY",
+      "computation": "total_liabilities=49610476817.81 / total_assets=303834844021.44"
+    }
+  ],
+  "risk_signals": [
+    {
+      "category": "disclosure_inconsistency",
+      "title": "Statement reconciliation issues",
+      "severity": "high",
+      "description": "The PDF extraction failed to locate key financial data such as gross profit and revealed inconsistencies in the balance equation. The only usable numerical data is from page 6 (the financial summary table), which shows revenue, net income, and operating cash flow, but without balance sheet details to validate the equation. This suggests extraction errors or incomplete data, not necessarily a genuine accounting issue.",
+      "metrics": {
+        "issues": "balance_equation_failed,income_missing:gross_profit"
+      }
+    },
+    {
+      "category": "audit_governance",
+      "title": "Audit opinion flags",
+      "severity": "high",
+      "description": "The keyword '保留意见' (qualified opinion) was extracted from page 1, but this appears to be a false positive. Page 2 explicitly states that the audit report by Tianjian Certified Public Accountants issued a '标准无保留意见' (standard unqualified opinion). The extraction likely misread the phrase from the table of contents or a header. The actual audit opinion is clean.",
+      "metrics": {
+        "keyword": "保留意见"
+      }
+    },
+    {
+      "category": "cash_vs_profit",
+      "title": "Operating Cash Flow Severe Decline vs Net Income",
+      "severity": "high",
+      "description": "Operating cash flow dropped 33.46% YoY while net income only fell 4.53%, indicating a significant divergence between cash generation and reported profitability. The company attributes this to reduced member deposits at its financial subsidiary and an increase in restricted interbank deposits, which may signal temporary liquidity distortions.",
+      "metrics": {
+        "operating_cf_2025": 61522204989.35,
+        "operating_cf_2024": 92463692168.43,
+        "cf_decline_pct": -33.46,
+        "net_income_2025": 82320067101.68,
+        "net_income_2024": 86228146421.62,
+        "ni_decline_pct": -4.53
+      }
+    },
+    {
+      "category": "one_offs",
+      "title": "Non-recurring Items in Non-operating Income/Expense Not Fully Disclosed",
+      "severity": "medium",
+      "description": "Non-recurring items (non-current asset disposals) are present and small, but the format suggests there may be other non-recurring items that are not separately broken down, potentially obscuring underlying earnings quality.",
+      "metrics": {
+        "non_current_asset_disposal_loss_2025": -2384586.28,
+        "non_current_asset_disposal_loss_2024": -6898481.82
+      }
+    },
+    {
+      "category": "audit_governance",
+      "title": "Balance Sheet Equation Failed in Data Extraction",
+      "severity": "high",
+      "description": "The automated extraction process flagged that the balance sheet equation did not hold, indicating a possible data integrity or extraction error. This undermines confidence in the accuracy of all extracted balance sheet figures.",
+      "metrics": {}
+    },
+    {
+      "category": "disclosure_inconsistency",
+      "title": "Missing Gross Profit Data in Extraction",
+      "severity": "medium",
+      "description": "Gross profit was not extracted from the report, likely because it is not explicitly stated in the provided chunks. This omission prevents analysis of gross margin trends and may hide cost pressures or pricing power changes.",
+      "metrics": {}
+    },
+    {
+      "category": "working_capital",
+      "title": "Revenue Declines While Net Income Declines Less Than Revenue",
+      "severity": "low",
+      "description": "Revenue fell 1.21% but net income fell 4.53%, indicating margin compression. The operating cash flow decline far exceeds both, amplifying working capital concerns.",
+      "metrics": {
+        "revenue_2025": 168838102514.79,
+        "revenue_2024": 170899152276.34,
+        "revenue_change_pct": -1.21,
+        "net_income_change_pct": -4.53,
+        "operating_cf_change_pct": -33.46
+      }
+    },
+    {
+      "category": "other",
+      "title": "High Dividend Payout May Strain Liquidity",
+      "severity": "low",
+      "description": "The proposed dividend of approx. RMB 35 billion exceeds net income (RMB 82.3 billion) by a significant portion, implying a payout ratio above 42%. While manageable for Moutai, it adds to cash outflows in a year of declining operating cash flow.",
+      "metrics": {
+        "proposed_dividend": 35032568759.73,
+        "net_income_2025": 82320067101.68,
+        "implied_payout_ratio_pct": 42.56
+      }
+    }
+  ],
+  "metadata": {
+    "filing_type": "annual",
+    "report_type": null,
+    "language": "zh",
+    "corrections_applied": true,
+    "total_raw_facts": 10
+  }
+}

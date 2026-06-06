@@ -89,7 +89,7 @@ def ingest_pdf(state: AgentState) -> AgentState:
 
     state.debug["page_count"] = len(state.pages)
     if os.getenv("DEBUG") == "1":
-        store.save_json(state.doc_meta.doc_id, "extracted/pages.json", [p.model_dump() for p in state.pages])
+        store.save_json(state.doc_meta.doc_id, "extracted/pages.json", [p.model_dump(mode="json") for p in state.pages])
     log_node(logger, state.doc_meta.doc_id, "ingest_pdf", start_ms)
     return state
 
@@ -351,7 +351,7 @@ def generate_risk_signals(state: AgentState) -> AgentState:
 
     shared_inputs = {
         "context": context,
-        "existing_signals": json.dumps([signal.model_dump() for signal in signals], ensure_ascii=False),
+        "existing_signals": json.dumps([signal.model_dump(mode="json") for signal in signals], ensure_ascii=False),
         "validation_issues": ",".join(state.validation_results.get("issues", [])),
     }
 
@@ -451,8 +451,8 @@ def build_trader_report(state: AgentState) -> AgentState:
         input_values={
             "doc_meta": json.dumps(state.doc_meta.model_dump(mode="json"), ensure_ascii=False),
             "validation_results": json.dumps(state.validation_results, ensure_ascii=False),
-            "risk_signals": json.dumps([s.model_dump() for s in state.risk_signals], ensure_ascii=False),
-            "notes": json.dumps([n.model_dump() for n in state.notes], ensure_ascii=False),
+            "risk_signals": json.dumps([s.model_dump(mode="json") for s in state.risk_signals], ensure_ascii=False),
+            "notes": json.dumps([n.model_dump(mode="json") for n in state.notes], ensure_ascii=False),
             "deep_analysis": state.deep_analysis.model_dump_json() if state.deep_analysis else "{}",
             "context": context,
             "numbers_snapshot": json.dumps(snapshot, ensure_ascii=False),
@@ -559,9 +559,9 @@ def finalize(state: AgentState) -> AgentState:
     store = get_storage_backend(state.data_dir or "data")
     state.doc_meta = enrich_document_meta(state.doc_meta, state.pages)
     store.save_meta(state.doc_meta.doc_id, state.doc_meta)
-    store.save_json(state.doc_meta.doc_id, "extracted/pages.json", [p.model_dump() for p in state.pages])
-    store.save_json(state.doc_meta.doc_id, "extracted/tables.json", [t.model_dump() for t in state.tables])
-    store.save_json(state.doc_meta.doc_id, "extracted/statements.json", {k: v.model_dump() for k, v in state.statements.items()})
+    store.save_json(state.doc_meta.doc_id, "extracted/pages.json", [p.model_dump(mode="json") for p in state.pages])
+    store.save_json(state.doc_meta.doc_id, "extracted/tables.json", [t.model_dump(mode="json") for t in state.tables])
+    store.save_json(state.doc_meta.doc_id, "extracted/statements.json", {k: v.model_dump(mode="json") for k, v in state.statements.items()})
     if not state.facts:
         state.facts = facts_from_statements(state.doc_meta, state.statements)
     store.save_json(state.doc_meta.doc_id, "extracted/facts.json", [fact.model_dump(mode="json") for fact in state.facts])
@@ -583,8 +583,8 @@ def finalize(state: AgentState) -> AgentState:
             "extracted/extraction_traces.json",
             [trace.model_dump(mode="json") for trace in state.extraction_traces],
         )
-    store.save_json(state.doc_meta.doc_id, "extracted/notes.json", [n.model_dump() for n in state.notes])
-    store.save_json(state.doc_meta.doc_id, "extracted/risk_signals.json", [s.model_dump() for s in state.risk_signals])
+    store.save_json(state.doc_meta.doc_id, "extracted/notes.json", [n.model_dump(mode="json") for n in state.notes])
+    store.save_json(state.doc_meta.doc_id, "extracted/risk_signals.json", [s.model_dump(mode="json") for s in state.risk_signals])
     if state.analysis_context:
         store.save_json(
             state.doc_meta.doc_id,

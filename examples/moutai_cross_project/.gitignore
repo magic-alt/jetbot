@@ -1,0 +1,4 @@
+# Ignore large PDF and generated data
+*.pdf
+data/
+!moutai_2025_export.json
