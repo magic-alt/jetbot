@@ -64,6 +64,10 @@ jobs:
         working-directory: web
         run: npm run lint
 
+      - name: Test web
+        working-directory: web
+        run: npm run test:unit --if-present
+
       - name: Type-check web
         working-directory: web
         run: npm run typecheck

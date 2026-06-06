@@ -677,19 +677,19 @@ def _save_partial_results(doc_id: str) -> None:
     try:
         s = get_storage_backend(partial.data_dir or DATA_DIR)
         if partial.pages:
-            s.save_json(doc_id, "extracted/pages.json", [p.model_dump() for p in partial.pages])
+            s.save_json(doc_id, "extracted/pages.json", [p.model_dump(mode="json") for p in partial.pages])
         if partial.tables:
-            s.save_json(doc_id, "extracted/tables.json", [t.model_dump() for t in partial.tables])
+            s.save_json(doc_id, "extracted/tables.json", [t.model_dump(mode="json") for t in partial.tables])
         if partial.statements:
-            s.save_json(doc_id, "extracted/statements.json", {k: v.model_dump() for k, v in partial.statements.items()})
+            s.save_json(doc_id, "extracted/statements.json", {k: v.model_dump(mode="json") for k, v in partial.statements.items()})
         if partial.facts:
             s.save_json(doc_id, "extracted/facts.json", [fact.model_dump(mode="json") for fact in partial.facts])
         if partial.fact_validation_results:
             s.save_json(doc_id, "extracted/fact_validation.json", partial.fact_validation_results.model_dump(mode="json"))
         if partial.notes:
-            s.save_json(doc_id, "extracted/notes.json", [n.model_dump() for n in partial.notes])
+            s.save_json(doc_id, "extracted/notes.json", [n.model_dump(mode="json") for n in partial.notes])
         if partial.risk_signals:
-            s.save_json(doc_id, "extracted/risk_signals.json", [sig.model_dump() for sig in partial.risk_signals])
+            s.save_json(doc_id, "extracted/risk_signals.json", [sig.model_dump(mode="json") for sig in partial.risk_signals])
         if partial.analysis_context:
             s.save_json(doc_id, "extracted/analysis_context.json", partial.analysis_context.model_dump(mode="json"))
         if partial.deep_analysis:
@@ -697,7 +697,7 @@ def _save_partial_results(doc_id: str) -> None:
         if partial.agent_runs:
             s.save_json(doc_id, "extracted/agent_runs.json", [run.model_dump(mode="json") for run in partial.agent_runs])
     except Exception:
-        pass
+        logger.warning("Failed to save partial results", doc_id=doc_id, exc_info=True)
 
 
 # ── Export endpoint (cross-project integration) ──────────────────────────

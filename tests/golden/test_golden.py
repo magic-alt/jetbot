@@ -119,8 +119,9 @@ class TestGoldenPipeline:
             metrics = statement_accuracy(actual_statement, expected_totals, tolerance=tolerance)
             # We check that accuracy is reasonable (at least some matches)
             if expected_totals:
-                assert metrics["accuracy"] >= 0.0, (
-                    f"Statement '{st_type}' accuracy too low: {metrics}"
+                assert metrics["accuracy"] >= 0.4, (
+                    f"Statement '{st_type}' accuracy too low: {metrics}. "
+                    f"Expected at least 40% of key totals to match within 5% tolerance."
                 )
 
     @pytest.mark.parametrize("case_index", range(5), ids=[
@@ -141,9 +142,16 @@ class TestGoldenPipeline:
         recall = note_type_recall(actual_types, expected_types)
         # At minimum, the pipeline should produce some notes
         assert len(result.notes) > 0, "No notes were extracted"
-        # Log recall for diagnostics (don't fail on partial recall for golden tests)
+        # Require at least 30% of expected note types to be found.
+        # When running with the mock LLM (all notes are fallback "other" type),
+        # note-type classification cannot be evaluated — skip the strict check.
         if expected_types:
-            assert recall >= 0.0, f"Note type recall: {recall}"
+            _only_fallback = actual_types <= {"other"}
+            if not _only_fallback:
+                assert recall >= 0.3, (
+                    f"Note type recall too low: {recall:.2f}. "
+                    f"Expected at least 30% of expected note types to be found."
+                )
 
     @pytest.mark.parametrize("case_index", range(5), ids=[
         "chinese_three_statements",
@@ -162,7 +170,10 @@ class TestGoldenPipeline:
 
         if expected_categories:
             recall = signal_category_recall(actual_categories, expected_categories)
-            assert recall >= 0.0, f"Signal category recall: {recall}"
+            assert recall >= 0.3, (
+                f"Signal category recall too low: {recall:.2f}. "
+                f"Expected at least 30% of expected signal categories to be found."
+            )
 
     @pytest.mark.parametrize("case_index", range(5), ids=[
         "chinese_three_statements",

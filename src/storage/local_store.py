@@ -29,7 +29,7 @@ class LocalStore:
     def _safe_path(self, path: Path) -> Path:
         """Verify that the resolved path is within base_dir."""
         resolved = path.resolve()
-        if not str(resolved).startswith(str(self.base_dir)):
+        if not resolved.is_relative_to(self.base_dir):
             raise ValueError(f"Path traversal detected: {path}")
         return resolved
 
@@ -93,7 +93,7 @@ class LocalStore:
 
     def save_json(self, doc_id: str, relative_path: str, data: Any) -> Path:
         paths = self.ensure_layout(doc_id)
-        full_path = paths["root"] / relative_path
+        full_path = self._safe_path(paths["root"] / relative_path)
         full_path.parent.mkdir(parents=True, exist_ok=True)
         full_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         return full_path
