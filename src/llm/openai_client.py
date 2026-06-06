@@ -8,10 +8,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from openai import OpenAI
-from pydantic import ValidationError
 
 from src.llm.base import StructuredPromptRequest
 from src.llm.token_manager import check_and_truncate
+from src.llm.utils import parse_json_fallback, render_user_prompt
 from src.utils.logging import get_logger
 
 _logger = get_logger(__name__)
@@ -117,7 +117,7 @@ class OpenAILLMClient:
         json_schema: dict[str, Any] | None = request.output_schema
         if json_schema is None and request.output_model is not None:
             json_schema = request.output_model.model_json_schema()
-        user_prompt = _render_user_prompt(request.user_template, request.input_values)
+        user_prompt = render_user_prompt(request.user_template, request.input_values)
         native_schema: dict[str, Any] | None = json_schema
         if json_schema is not None and not self._supports_native_structured_output():
             user_prompt = _with_json_instructions(user_prompt, json_schema)
@@ -127,7 +127,7 @@ class OpenAILLMClient:
             user_prompt,
             native_schema,
         )
-        return _parse_fallback(text, request.output_model)
+        return parse_json_fallback(text, request.output_model)
 
     def invoke_parallel(
         self,
@@ -195,14 +195,6 @@ def _message_to_text(message: BaseMessage | str) -> str:
     return "{}"
 
 
-def _render_user_prompt(template: str, values: dict[str, Any]) -> str:
-    try:
-        return template.format(**values)
-    except KeyError as exc:
-        _logger.warning("user_prompt_missing_key", extra={"key": str(exc), "template_keys": list(values.keys())})
-        return template
-
-
 def _with_json_instructions(user_prompt: str, json_schema: dict[str, Any]) -> str:
     schema_text = json.dumps(json_schema, ensure_ascii=False)
     return (
@@ -211,39 +203,6 @@ def _with_json_instructions(user_prompt: str, json_schema: dict[str, Any]) -> st
         "Do not include markdown fences or explanatory text.\n"
         f"JSON Schema:\n{schema_text}"
     )
-
-
-def _parse_fallback(text: str, output_model: Any) -> Any:
-    parsed = _load_json_payload(text)
-    if output_model is None:
-        return parsed
-    try:
-        return output_model.model_validate(parsed)
-    except ValidationError:
-        if isinstance(parsed, list):
-            fields = list(output_model.model_fields.keys())
-            if len(fields) == 1:
-                return output_model.model_validate({fields[0]: parsed})
-        raise
-
-
-def _load_json_payload(text: str) -> Any:
-    decoder = json.JSONDecoder()
-    stripped = text.strip()
-    try:
-        return json.loads(stripped)
-    except json.JSONDecodeError:
-        pass
-
-    for start_char in ("{", "["):
-        start = stripped.find(start_char)
-        while start != -1:
-            try:
-                parsed, _end = decoder.raw_decode(stripped[start:])
-                return parsed
-            except json.JSONDecodeError:
-                start = stripped.find(start_char, start + 1)
-    return {}
 
 
 def _runnable_config(
